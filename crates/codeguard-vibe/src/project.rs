@@ -3,13 +3,10 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::{Path, PathBuf};
 
-static UNPINNED_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^([a-zA-Z0-9_-]+)\s*(>=|>|~=|\*|!=)").unwrap()
-});
+static UNPINNED_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^([a-zA-Z0-9_-]+)\s*(>=|>|~=|\*|!=)").unwrap());
 
-static PINNED_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^([a-zA-Z0-9_-]+)\s*==\s*\d").unwrap()
-});
+static PINNED_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^([a-zA-Z0-9_-]+)\s*==\s*\d").unwrap());
 
 /// Dangerous file patterns that should not be in a project tree
 const DANGEROUS_PATTERNS: &[(&str, &str)] = &[
@@ -33,7 +30,10 @@ const DANGEROUS_PATTERNS: &[(&str, &str)] = &[
     ("shadow", "system shadow file"),
     (".npmrc", "npm config (may contain auth tokens)"),
     (".pypirc", "PyPI config (may contain auth tokens)"),
-    ("docker-compose.override.yml", "docker override (may contain secrets)"),
+    (
+        "docker-compose.override.yml",
+        "docker override (may contain secrets)",
+    ),
 ];
 
 const DANGEROUS_EXTENSIONS: &[(&str, &str)] = &[
@@ -168,20 +168,33 @@ fn check_requirements_pinning(root: &Path, diags: &mut Vec<Diagnostic>) {
             diags.push(
                 Diagnostic::warning(
                     RuleCode::new("VC008"),
-                    Span::new(rel.clone(), i as u32 + 1, 0, i as u32 + 1, trimmed.len() as u32),
+                    Span::new(
+                        rel.clone(),
+                        i as u32 + 1,
+                        0,
+                        i as u32 + 1,
+                        trimmed.len() as u32,
+                    ),
                     format!("unpinned dependency: '{pkg}' has no version constraint"),
                 )
                 .with_suggestion(format!("pin version: {pkg}==<version>")),
             );
         } else if UNPINNED_RE.is_match(trimmed) {
             // Has version but not pinned: `requests>=2.0`
-            let pkg = trimmed.split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+            let pkg = trimmed
+                .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
                 .next()
                 .unwrap_or(trimmed);
             diags.push(
                 Diagnostic::info(
                     RuleCode::new("VC008"),
-                    Span::new(rel.clone(), i as u32 + 1, 0, i as u32 + 1, trimmed.len() as u32),
+                    Span::new(
+                        rel.clone(),
+                        i as u32 + 1,
+                        0,
+                        i as u32 + 1,
+                        trimmed.len() as u32,
+                    ),
                     format!("loosely pinned dependency: '{trimmed}'"),
                 )
                 .with_suggestion(format!("consider pinning: {pkg}==<exact_version>")),
@@ -217,7 +230,9 @@ fn check_missing_lockfile(root: &Path, diags: &mut Vec<Diagnostic>) {
             Diagnostic::warning(
                 RuleCode::new("VC009"),
                 Span::new(PathBuf::from(manifest), 1, 0, 1, 0),
-                format!("no lockfile found (has {manifest} but no poetry.lock/Pipfile.lock/uv.lock)"),
+                format!(
+                    "no lockfile found (has {manifest} but no poetry.lock/Pipfile.lock/uv.lock)"
+                ),
             )
             .with_suggestion("generate a lockfile to ensure reproducible builds"),
         );

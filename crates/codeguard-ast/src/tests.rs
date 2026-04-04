@@ -109,10 +109,10 @@ fn test_multiple_imports() {
 fn test_line_index() {
     let source = "line1\nline2\nline3";
     let idx = LineIndex::new(source);
-    assert_eq!(idx.line_col(0), (1, 0));   // start of line 1
-    assert_eq!(idx.line_col(6), (2, 0));   // start of line 2
-    assert_eq!(idx.line_col(8), (2, 2));   // 'n' in line2
-    assert_eq!(idx.line_col(12), (3, 0));  // start of line 3
+    assert_eq!(idx.line_col(0), (1, 0)); // start of line 1
+    assert_eq!(idx.line_col(6), (2, 0)); // start of line 2
+    assert_eq!(idx.line_col(8), (2, 2)); // 'n' in line2
+    assert_eq!(idx.line_col(12), (3, 0)); // start of line 3
 }
 
 #[test]

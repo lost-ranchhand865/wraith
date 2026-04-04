@@ -22,9 +22,9 @@ pub struct Config {
 
 impl Config {
     pub fn cache_dir(&self) -> PathBuf {
-        self.cache_dir.clone().unwrap_or_else(|| {
-            dirs_or_default().join("wraith")
-        })
+        self.cache_dir
+            .clone()
+            .unwrap_or_else(|| dirs_or_default().join("wraith"))
     }
 
     pub fn pypi_cache_ttl(&self) -> u64 {
@@ -40,7 +40,9 @@ impl Config {
 
     pub fn is_rule_enabled(&self, code: &str) -> bool {
         // Pedantic rules are off by default unless --pedantic or explicitly --select'd
-        let is_pedantic = PEDANTIC_RULES.iter().any(|&r| code.to_uppercase().starts_with(&r.to_uppercase()));
+        let is_pedantic = PEDANTIC_RULES
+            .iter()
+            .any(|&r| code.to_uppercase().starts_with(&r.to_uppercase()));
         match &self.select {
             None => {
                 if is_pedantic && !self.pedantic {
@@ -66,7 +68,7 @@ impl Config {
         let candidates = [
             project_root.join("wraith.toml"),
             project_root.join(".wraith.toml"),
-            project_root.join("codeguard.toml"),  // backwards compat
+            project_root.join("codeguard.toml"), // backwards compat
         ];
         for path in &candidates {
             if path.exists() {

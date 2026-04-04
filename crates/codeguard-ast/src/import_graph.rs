@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone)]
 pub struct ModuleNode {
     pub path: PathBuf,
-    pub imports: Vec<String>,     // modules this file imports
+    pub imports: Vec<String>,      // modules this file imports
     pub exported: HashSet<String>, // names defined at module level
 }
 
@@ -20,10 +20,7 @@ pub struct ImportGraph {
 impl ImportGraph {
     /// Build import graph from parsed files.
     /// `files` is a list of (path, source, tree) tuples.
-    pub fn build(
-        files: &[(PathBuf, String, tree_sitter::Tree)],
-        project_root: &Path,
-    ) -> Self {
+    pub fn build(files: &[(PathBuf, String, tree_sitter::Tree)], project_root: &Path) -> Self {
         let mut graph = Self::default();
 
         for (path, source, tree) in files {
@@ -114,9 +111,7 @@ fn path_to_module(path: &Path, root: &Path) -> String {
     parts.join(".")
 }
 
-fn get_module_level_bindings(
-    _symtable: &crate::symbols::SymbolTable,
-) -> Option<HashSet<String>> {
+fn get_module_level_bindings(_symtable: &crate::symbols::SymbolTable) -> Option<HashSet<String>> {
     // This is a simplified version — returns all names bound at depth 0
     // Full implementation would inspect the symbol table's bindings directly
     // For now, we expose this through the existing API
@@ -138,9 +133,6 @@ mod tests {
             path_to_module(Path::new("/project/mypackage/__init__.py"), root),
             "mypackage"
         );
-        assert_eq!(
-            path_to_module(Path::new("/project/main.py"), root),
-            "main"
-        );
+        assert_eq!(path_to_module(Path::new("/project/main.py"), root), "main");
     }
 }

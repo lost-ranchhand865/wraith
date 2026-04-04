@@ -64,11 +64,22 @@ impl SymbolTable {
         table
     }
 
-    pub fn add(&mut self, name: String, kind: BindingKind, line: u32, scope_depth: u32, scope_start: u32, scope_end: u32) {
-        self.bindings
-            .entry(name)
-            .or_default()
-            .push(Binding { kind, scope_depth, scope_start, scope_end, line });
+    pub fn add(
+        &mut self,
+        name: String,
+        kind: BindingKind,
+        line: u32,
+        scope_depth: u32,
+        scope_start: u32,
+        scope_end: u32,
+    ) {
+        self.bindings.entry(name).or_default().push(Binding {
+            kind,
+            scope_depth,
+            scope_start,
+            scope_end,
+            line,
+        });
     }
 
     /// Check if a name was ever bound as an import in this file.
@@ -126,7 +137,14 @@ fn collect_bindings(node: Node, source: &str, table: &mut SymbolTable, depth: u3
     collect_bindings_inner(node, source, table, depth, scope_start, scope_end);
 }
 
-fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, depth: u32, scope_start: u32, scope_end: u32) {
+fn collect_bindings_inner(
+    node: Node,
+    source: &str,
+    table: &mut SymbolTable,
+    depth: u32,
+    scope_start: u32,
+    scope_end: u32,
+) {
     match node.kind() {
         // import X, import X as Y, import X.Y.Z
         "import_statement" => {
@@ -137,16 +155,37 @@ fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, dep
                         // `import os.path` — binds `os`
                         let full = text(child, source);
                         let top = full.split('.').next().unwrap_or(&full);
-                        table.add(top.to_string(), BindingKind::Import, line(child), depth, scope_start, scope_end);
+                        table.add(
+                            top.to_string(),
+                            BindingKind::Import,
+                            line(child),
+                            depth,
+                            scope_start,
+                            scope_end,
+                        );
                     }
                     "aliased_import" => {
                         // `import numpy as np` — binds `np`
                         if let Some(alias) = child.child_by_field_name("alias") {
-                            table.add(text(alias, source), BindingKind::Import, line(child), depth, scope_start, scope_end);
+                            table.add(
+                                text(alias, source),
+                                BindingKind::Import,
+                                line(child),
+                                depth,
+                                scope_start,
+                                scope_end,
+                            );
                         } else if let Some(name) = child.child_by_field_name("name") {
                             let full = text(name, source);
                             let top = full.split('.').next().unwrap_or(&full);
-                            table.add(top.to_string(), BindingKind::Import, line(child), depth, scope_start, scope_end);
+                            table.add(
+                                top.to_string(),
+                                BindingKind::Import,
+                                line(child),
+                                depth,
+                                scope_start,
+                                scope_end,
+                            );
                         }
                     }
                     _ => {}
@@ -165,13 +204,34 @@ fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, dep
                         if module_node.map(|m| m.id()) == Some(child.id()) {
                             continue;
                         }
-                        table.add(text(child, source), BindingKind::FromImport, line(child), depth, scope_start, scope_end);
+                        table.add(
+                            text(child, source),
+                            BindingKind::FromImport,
+                            line(child),
+                            depth,
+                            scope_start,
+                            scope_end,
+                        );
                     }
                     "aliased_import" => {
                         if let Some(alias) = child.child_by_field_name("alias") {
-                            table.add(text(alias, source), BindingKind::FromImport, line(child), depth, scope_start, scope_end);
+                            table.add(
+                                text(alias, source),
+                                BindingKind::FromImport,
+                                line(child),
+                                depth,
+                                scope_start,
+                                scope_end,
+                            );
                         } else if let Some(name) = child.child_by_field_name("name") {
-                            table.add(text(name, source), BindingKind::FromImport, line(child), depth, scope_start, scope_end);
+                            table.add(
+                                text(name, source),
+                                BindingKind::FromImport,
+                                line(child),
+                                depth,
+                                scope_start,
+                                scope_end,
+                            );
                         }
                     }
                     "wildcard_import" => {
@@ -185,12 +245,28 @@ fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, dep
         // X = ..., X += ..., X: type = ...
         "assignment" => {
             if let Some(left) = node.child_by_field_name("left") {
-                collect_target_names(left, source, BindingKind::Assignment, table, depth, scope_start, scope_end);
+                collect_target_names(
+                    left,
+                    source,
+                    BindingKind::Assignment,
+                    table,
+                    depth,
+                    scope_start,
+                    scope_end,
+                );
             }
         }
         "augmented_assignment" => {
             if let Some(left) = node.child_by_field_name("left") {
-                collect_target_names(left, source, BindingKind::Assignment, table, depth, scope_start, scope_end);
+                collect_target_names(
+                    left,
+                    source,
+                    BindingKind::Assignment,
+                    table,
+                    depth,
+                    scope_start,
+                    scope_end,
+                );
             }
         }
 
@@ -198,7 +274,14 @@ fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, dep
         "function_definition" => {
             // Bind the function name
             if let Some(name) = node.child_by_field_name("name") {
-                table.add(text(name, source), BindingKind::FunctionDef, line(name), depth, scope_start, scope_end);
+                table.add(
+                    text(name, source),
+                    BindingKind::FunctionDef,
+                    line(name),
+                    depth,
+                    scope_start,
+                    scope_end,
+                );
             }
             // Bind parameters (scope = the function body)
             let fn_start = node.start_position().row as u32 + 1;
@@ -211,14 +294,29 @@ fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, dep
         // class X:
         "class_definition" => {
             if let Some(name) = node.child_by_field_name("name") {
-                table.add(text(name, source), BindingKind::ClassDef, line(name), depth, scope_start, scope_end);
+                table.add(
+                    text(name, source),
+                    BindingKind::ClassDef,
+                    line(name),
+                    depth,
+                    scope_start,
+                    scope_end,
+                );
             }
         }
 
         // for X in ...:
         "for_statement" => {
             if let Some(left) = node.child_by_field_name("left") {
-                collect_target_names(left, source, BindingKind::ForTarget, table, depth, scope_start, scope_end);
+                collect_target_names(
+                    left,
+                    source,
+                    BindingKind::ForTarget,
+                    table,
+                    depth,
+                    scope_start,
+                    scope_end,
+                );
             }
         }
 
@@ -245,12 +343,28 @@ fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, dep
                     let mut inner = child.walk();
                     for c in child.children(&mut inner) {
                         if c.kind() == "as_pattern_target" {
-                            collect_target_names(c, source, BindingKind::ExceptTarget, table, depth, scope_start, scope_end);
+                            collect_target_names(
+                                c,
+                                source,
+                                BindingKind::ExceptTarget,
+                                table,
+                                depth,
+                                scope_start,
+                                scope_end,
+                            );
                         }
                     }
                     // Fallback: try field name
                     if let Some(alias) = child.child_by_field_name("alias") {
-                        collect_target_names(alias, source, BindingKind::ExceptTarget, table, depth, scope_start, scope_end);
+                        collect_target_names(
+                            alias,
+                            source,
+                            BindingKind::ExceptTarget,
+                            table,
+                            depth,
+                            scope_start,
+                            scope_end,
+                        );
                     }
                 }
             }
@@ -261,7 +375,14 @@ fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, dep
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 if child.kind() == "identifier" {
-                    table.add(text(child, source), BindingKind::Global, line(child), depth, scope_start, scope_end);
+                    table.add(
+                        text(child, source),
+                        BindingKind::Global,
+                        line(child),
+                        depth,
+                        scope_start,
+                        scope_end,
+                    );
                 }
             }
         }
@@ -271,7 +392,14 @@ fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, dep
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 if child.kind() == "identifier" {
-                    table.add(text(child, source), BindingKind::Nonlocal, line(child), depth, scope_start, scope_end);
+                    table.add(
+                        text(child, source),
+                        BindingKind::Nonlocal,
+                        line(child),
+                        depth,
+                        scope_start,
+                        scope_end,
+                    );
                 }
             }
         }
@@ -280,13 +408,22 @@ fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, dep
         "named_expression" => {
             if let Some(name) = node.child_by_field_name("name") {
                 if name.kind() == "identifier" {
-                    table.add(text(name, source), BindingKind::NamedExpr, line(name), depth, scope_start, scope_end);
+                    table.add(
+                        text(name, source),
+                        BindingKind::NamedExpr,
+                        line(name),
+                        depth,
+                        scope_start,
+                        scope_end,
+                    );
                 }
             }
         }
 
         // List/dict/set comprehension: [... for X in ...]
-        "list_comprehension" | "set_comprehension" | "dictionary_comprehension"
+        "list_comprehension"
+        | "set_comprehension"
+        | "dictionary_comprehension"
         | "generator_expression" => {
             collect_comprehension_vars(node, source, table, depth, scope_start, scope_end);
         }
@@ -306,7 +443,14 @@ fn collect_bindings_inner(node: Node, source: &str, table: &mut SymbolTable, dep
     let count = node.child_count();
     for i in 0..count {
         if let Some(child) = node.child(i) {
-            collect_bindings_inner(child, source, table, child_depth, child_scope_start, child_scope_end);
+            collect_bindings_inner(
+                child,
+                source,
+                table,
+                child_depth,
+                child_scope_start,
+                child_scope_end,
+            );
         }
     }
 }
@@ -323,7 +467,14 @@ fn collect_target_names(
 ) {
     match node.kind() {
         "identifier" => {
-            table.add(text(node, source), kind, line(node), depth, scope_start, scope_end);
+            table.add(
+                text(node, source),
+                kind,
+                line(node),
+                depth,
+                scope_start,
+                scope_end,
+            );
         }
         // Wrapper nodes that contain an identifier child
         "as_pattern_target" => {
@@ -351,25 +502,53 @@ fn collect_target_names(
 }
 
 /// Extract parameter names from function parameters.
-fn collect_parameters(node: Node, source: &str, table: &mut SymbolTable, depth: u32, scope_start: u32, scope_end: u32) {
+fn collect_parameters(
+    node: Node,
+    source: &str,
+    table: &mut SymbolTable,
+    depth: u32,
+    scope_start: u32,
+    scope_end: u32,
+) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
             "identifier" => {
-                table.add(text(child, source), BindingKind::Parameter, line(child), depth, scope_start, scope_end);
+                table.add(
+                    text(child, source),
+                    BindingKind::Parameter,
+                    line(child),
+                    depth,
+                    scope_start,
+                    scope_end,
+                );
             }
             "default_parameter" | "typed_default_parameter" | "typed_parameter" => {
                 // Try field "name" first
                 if let Some(name) = child.child_by_field_name("name") {
                     if name.kind() == "identifier" {
-                        table.add(text(name, source), BindingKind::Parameter, line(name), depth, scope_start, scope_end);
+                        table.add(
+                            text(name, source),
+                            BindingKind::Parameter,
+                            line(name),
+                            depth,
+                            scope_start,
+                            scope_end,
+                        );
                     }
                 } else {
                     // Fallback: find identifier — may be nested in splat patterns
                     // e.g. typed_parameter > dictionary_splat_pattern > identifier
                     let found = find_first_identifier(child, source);
                     if let Some((name_str, name_line)) = found {
-                        table.add(name_str, BindingKind::Parameter, name_line, depth, scope_start, scope_end);
+                        table.add(
+                            name_str,
+                            BindingKind::Parameter,
+                            name_line,
+                            depth,
+                            scope_start,
+                            scope_end,
+                        );
                     }
                 }
             }
@@ -378,19 +557,41 @@ fn collect_parameters(node: Node, source: &str, table: &mut SymbolTable, depth: 
                 let mut inner = child.walk();
                 for c in child.children(&mut inner) {
                     if c.kind() == "identifier" {
-                        table.add(text(c, source), BindingKind::Parameter, line(c), depth, scope_start, scope_end);
+                        table.add(
+                            text(c, source),
+                            BindingKind::Parameter,
+                            line(c),
+                            depth,
+                            scope_start,
+                            scope_end,
+                        );
                     }
                 }
             }
             "tuple_pattern" | "list_pattern" => {
-                collect_target_names(child, source, BindingKind::Parameter, table, depth, scope_start, scope_end);
+                collect_target_names(
+                    child,
+                    source,
+                    BindingKind::Parameter,
+                    table,
+                    depth,
+                    scope_start,
+                    scope_end,
+                );
             }
             _ => {}
         }
     }
 }
 
-fn collect_with_items(node: Node, source: &str, table: &mut SymbolTable, depth: u32, scope_start: u32, scope_end: u32) {
+fn collect_with_items(
+    node: Node,
+    source: &str,
+    table: &mut SymbolTable,
+    depth: u32,
+    scope_start: u32,
+    scope_end: u32,
+) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
@@ -402,7 +603,15 @@ fn collect_with_items(node: Node, source: &str, table: &mut SymbolTable, depth: 
                 let mut inner = child.walk();
                 for c in child.children(&mut inner) {
                     if c.kind() == "as_pattern_target" {
-                        collect_target_names(c, source, BindingKind::WithTarget, table, depth, scope_start, scope_end);
+                        collect_target_names(
+                            c,
+                            source,
+                            BindingKind::WithTarget,
+                            table,
+                            depth,
+                            scope_start,
+                            scope_end,
+                        );
                     }
                 }
             }
@@ -411,12 +620,27 @@ fn collect_with_items(node: Node, source: &str, table: &mut SymbolTable, depth: 
     }
 }
 
-fn collect_comprehension_vars(node: Node, source: &str, table: &mut SymbolTable, depth: u32, scope_start: u32, scope_end: u32) {
+fn collect_comprehension_vars(
+    node: Node,
+    source: &str,
+    table: &mut SymbolTable,
+    depth: u32,
+    scope_start: u32,
+    scope_end: u32,
+) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() == "for_in_clause" {
             if let Some(left) = child.child_by_field_name("left") {
-                collect_target_names(left, source, BindingKind::ComprehensionVar, table, depth, scope_start, scope_end);
+                collect_target_names(
+                    left,
+                    source,
+                    BindingKind::ComprehensionVar,
+                    table,
+                    depth,
+                    scope_start,
+                    scope_end,
+                );
             }
         }
         // Recurse for nested comprehensions
@@ -558,4 +782,3 @@ mod tests {
         assert!(st.is_local("locale"));
     }
 }
-

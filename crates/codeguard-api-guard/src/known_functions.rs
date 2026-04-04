@@ -71,10 +71,16 @@ pub fn bare_call_map() -> HashMap<&'static str, (&'static str, &'static str)> {
     m.insert("imshow", ("matplotlib.pyplot", "plt"));
 
     // sklearn
-    m.insert("train_test_split", ("sklearn.model_selection", "sklearn.model_selection"));
+    m.insert(
+        "train_test_split",
+        ("sklearn.model_selection", "sklearn.model_selection"),
+    );
     m.insert("accuracy_score", ("sklearn.metrics", "sklearn.metrics"));
     m.insert("confusion_matrix", ("sklearn.metrics", "sklearn.metrics"));
-    m.insert("classification_report", ("sklearn.metrics", "sklearn.metrics"));
+    m.insert(
+        "classification_report",
+        ("sklearn.metrics", "sklearn.metrics"),
+    );
 
     // torch
     m.insert("tensor", ("torch", "torch"));

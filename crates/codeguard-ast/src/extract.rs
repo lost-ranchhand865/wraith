@@ -142,7 +142,14 @@ fn extract_recursive(
     }
 }
 
-fn extract_import(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &mut FileInfo, is_type_checking: bool) {
+fn extract_import(
+    node: Node,
+    source: &str,
+    path: &Path,
+    idx: &LineIndex,
+    info: &mut FileInfo,
+    is_type_checking: bool,
+) {
     // import X, import X as Y, import X.Y.Z
     let mut cursor = node.walk();
     let mut names = Vec::new();
@@ -196,7 +203,9 @@ fn extract_from_import(
     is_type_checking: bool,
 ) {
     let module_node = node.child_by_field_name("module_name");
-    let module = module_node.map(|n| node_text(n, source)).unwrap_or_default();
+    let module = module_node
+        .map(|n| node_text(n, source))
+        .unwrap_or_default();
 
     // Relative imports (from . import X) — skip package validation
     if module.is_empty() || module.starts_with('.') {
@@ -254,14 +263,12 @@ fn extract_call(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &m
             let obj = obj_node.map(|n| node_text(n, source));
             // Check if object is a plain identifier vs call/subscript/literal
             let obj_is_name = obj_node.map_or(false, |n| {
-                n.kind() == "identifier" || n.kind() == "dotted_name"
-                    || (n.kind() == "attribute"
-                        && is_identifier_chain(n, source))
+                n.kind() == "identifier"
+                    || n.kind() == "dotted_name"
+                    || (n.kind() == "attribute" && is_identifier_chain(n, source))
             });
             let attr_node = f.child_by_field_name("attribute");
-            let attr = attr_node
-                .map(|n| node_text(n, source))
-                .unwrap_or_default();
+            let attr = attr_node.map(|n| node_text(n, source)).unwrap_or_default();
             let full = node_text(f, source);
             let aspan = attr_node
                 .map(|n| idx.span_from_node(n, path))
@@ -323,13 +330,7 @@ fn extract_call(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &m
     });
 }
 
-fn extract_assignment(
-    node: Node,
-    source: &str,
-    path: &Path,
-    idx: &LineIndex,
-    info: &mut FileInfo,
-) {
+fn extract_assignment(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &mut FileInfo) {
     let left = node.child_by_field_name("left");
     let right = node.child_by_field_name("right");
 
@@ -398,9 +399,9 @@ fn extract_decorated_definition(
                     }
 
                     // Find the function def that follows
-                    let func_def = node.children(&mut node.walk()).find(|c| {
-                        c.kind() == "function_definition"
-                    });
+                    let func_def = node
+                        .children(&mut node.walk())
+                        .find(|c| c.kind() == "function_definition");
                     let function_span = func_def
                         .map(|f| idx.span_from_node(f, path))
                         .unwrap_or_else(|| idx.span_from_node(node, path));
@@ -422,12 +423,10 @@ fn extract_decorated_definition(
 fn is_identifier_chain(node: Node, _source: &str) -> bool {
     match node.kind() {
         "identifier" => true,
-        "attribute" => {
-            node.child_by_field_name("object")
-                .map_or(false, |obj| {
-                    obj.kind() == "identifier" || (obj.kind() == "attribute" && is_identifier_chain(obj, _source))
-                })
-        }
+        "attribute" => node.child_by_field_name("object").map_or(false, |obj| {
+            obj.kind() == "identifier"
+                || (obj.kind() == "attribute" && is_identifier_chain(obj, _source))
+        }),
         _ => false,
     }
 }

@@ -5,9 +5,8 @@ use std::collections::HashSet;
 /// Regex matching `# noqa` with optional code list.
 /// Matches: `# noqa`, `# noqa: VC003`, `# noqa: VC003, AG001`, `# NOQA: vc003`
 /// Also matches: `# type: ignore` style won't interfere (different prefix).
-static NOQA_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?i)#\s*noqa(?:\s*:\s*([A-Za-z0-9,\s]+))?").unwrap()
-});
+static NOQA_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?i)#\s*noqa(?:\s*:\s*([A-Za-z0-9,\s]+))?").unwrap());
 
 /// Parsed noqa directive for a single line.
 #[derive(Debug, Clone)]
@@ -120,13 +119,14 @@ mod tests {
 
     #[test]
     fn test_build_map_and_suppress() {
-        let source = "import os\nprint('debug')  # noqa: VC003\nprint('also debug')  # noqa\nx = 1\n";
+        let source =
+            "import os\nprint('debug')  # noqa: VC003\nprint('also debug')  # noqa\nx = 1\n";
         let map = build_noqa_map(source);
         assert!(!is_suppressed(&map, 1, "VC003")); // import os — no noqa
-        assert!(is_suppressed(&map, 2, "VC003"));   // noqa: VC003
-        assert!(!is_suppressed(&map, 2, "AG001"));   // noqa: VC003 doesn't suppress AG001
-        assert!(is_suppressed(&map, 3, "VC003"));    // noqa (bare) suppresses everything
-        assert!(is_suppressed(&map, 3, "AG001"));    // noqa (bare) suppresses everything
-        assert!(!is_suppressed(&map, 4, "VC003"));   // x = 1 — no noqa
+        assert!(is_suppressed(&map, 2, "VC003")); // noqa: VC003
+        assert!(!is_suppressed(&map, 2, "AG001")); // noqa: VC003 doesn't suppress AG001
+        assert!(is_suppressed(&map, 3, "VC003")); // noqa (bare) suppresses everything
+        assert!(is_suppressed(&map, 3, "AG001")); // noqa (bare) suppresses everything
+        assert!(!is_suppressed(&map, 4, "VC003")); // x = 1 — no noqa
     }
 }

@@ -20,17 +20,15 @@ fn check_source(py: Python<'_>, source: &str, filename: &str) -> PyResult<Vec<Py
 #[pyo3(signature = (source, filename = "<stdin>"))]
 fn fix(_py: Python<'_>, source: &str, filename: &str) -> PyResult<String> {
     let path = PathBuf::from(filename);
-    let tree = codeguard_ast::parse_python(source)
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to parse Python source"))?;
+    let tree = codeguard_ast::parse_python(source).ok_or_else(|| {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to parse Python source")
+    })?;
 
     let mut diagnostics = Vec::new();
     diagnostics.extend(codeguard_vibe::lint_vibe(&tree, source, &path));
     diagnostics.extend(codeguard_vibe::taint::check_taint(&tree, source, &path));
 
-    let fixes: Vec<_> = diagnostics
-        .iter()
-        .filter_map(|d| d.fix.as_ref())
-        .collect();
+    let fixes: Vec<_> = diagnostics.iter().filter_map(|d| d.fix.as_ref()).collect();
 
     if fixes.is_empty() {
         return Ok(source.to_string());
@@ -58,8 +56,9 @@ fn fix(_py: Python<'_>, source: &str, filename: &str) -> PyResult<String> {
 
 fn check_source_impl(py: Python<'_>, source: &str, filename: &str) -> PyResult<Vec<PyObject>> {
     let path = PathBuf::from(filename);
-    let tree = codeguard_ast::parse_python(source)
-        .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to parse Python source"))?;
+    let tree = codeguard_ast::parse_python(source).ok_or_else(|| {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("Failed to parse Python source")
+    })?;
 
     let mut diagnostics = Vec::new();
     diagnostics.extend(codeguard_vibe::lint_vibe(&tree, source, &path));
@@ -70,11 +69,13 @@ fn check_source_impl(py: Python<'_>, source: &str, filename: &str) -> PyResult<V
         .map(|d| {
             let dict = PyDict::new_bound(py);
             dict.set_item("code", &d.code.0).unwrap();
-            dict.set_item("severity", format!("{}", d.severity)).unwrap();
+            dict.set_item("severity", format!("{}", d.severity))
+                .unwrap();
             dict.set_item("line", d.span.start_line).unwrap();
             dict.set_item("col", d.span.start_col).unwrap();
             dict.set_item("message", &d.message).unwrap();
-            dict.set_item("suggestion", d.suggestion.as_deref()).unwrap();
+            dict.set_item("suggestion", d.suggestion.as_deref())
+                .unwrap();
             dict.set_item("fixable", d.fix.is_some()).unwrap();
             dict.set_item("confidence", d.confidence).unwrap();
             dict.into_py(py)

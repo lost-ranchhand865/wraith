@@ -29,7 +29,13 @@ pub struct Span {
 }
 
 impl Span {
-    pub fn new(file: PathBuf, start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Self {
+    pub fn new(
+        file: PathBuf,
+        start_line: u32,
+        start_col: u32,
+        end_line: u32,
+        end_col: u32,
+    ) -> Self {
         Self {
             file,
             start_line,

@@ -23,12 +23,7 @@ impl ApiGuardLinter {
     }
 
     /// Collect unique (module, attribute) pairs needed for introspection
-    pub fn collect_queries(
-        &self,
-        tree: &Tree,
-        source: &str,
-        path: &Path,
-    ) -> Vec<(String, String)> {
+    pub fn collect_queries(&self, tree: &Tree, source: &str, path: &Path) -> Vec<(String, String)> {
         let info = extract_file_info(tree, source, path);
         let mut queries = Vec::new();
         let mut seen = HashSet::new();
@@ -106,93 +101,94 @@ impl ApiGuardLinter {
 
         // AG001-AG003: introspection-based checks (need cache)
         if !cache.is_empty() {
-        for call in &info.calls {
-            if let Some(ref receiver) = call.receiver {
-                let top = receiver.split('.').next().unwrap_or(receiver);
-                if !alias_map.contains_key(top) {
-                    continue;
-                }
-                let module = resolve_module(receiver, &alias_map);
-                let key = format!("{}.{}", module, call.function);
-
-                if let Some(result) = cache.get(&key) {
-                    // Skip if module wasn't importable (e.g. os.environ is a dict, not a module)
-                    if !result.module_found {
+            for call in &info.calls {
+                if let Some(ref receiver) = call.receiver {
+                    let top = receiver.split('.').next().unwrap_or(receiver);
+                    if !alias_map.contains_key(top) {
                         continue;
                     }
+                    let module = resolve_module(receiver, &alias_map);
+                    let key = format!("{}.{}", module, call.function);
 
-                    // AG001: attribute/method doesn't exist
-                    if !result.exists {
-                        let mut d = Diagnostic::error(
-                            RuleCode::new("AG001"),
-                            call.span.clone(),
-                            format!(
-                                "{}.{}: no such attribute in module '{}'",
-                                receiver, call.function, module
-                            ),
-                        );
-                        if let Some(ref suggestion) = result.closest_match {
-                            d = d.with_suggestion(format!("did you mean '{suggestion}'?"));
-                            // Autofix: replace the hallucinated attribute with the suggestion
-                            let fs = &call.function_span;
-                            d = d.with_fix(TextEdit {
-                                start_line: fs.start_line,
-                                start_col: fs.start_col,
-                                end_line: fs.end_line,
-                                end_col: fs.end_col,
-                                replacement: suggestion.clone(),
-                            });
+                    if let Some(result) = cache.get(&key) {
+                        // Skip if module wasn't importable (e.g. os.environ is a dict, not a module)
+                        if !result.module_found {
+                            continue;
                         }
-                        diagnostics.push(d);
-                        continue;
-                    }
 
-                    // AG002: non-existent keyword argument
-                    if let Some(ref sig) = result.signature {
-                        if !sig.has_var_keyword {
-                            for kwarg in &call.keyword_args {
-                                if !sig.params.iter().any(|p| p.name == kwarg.name) {
-                                    let suggestion = find_closest_param(&kwarg.name, &sig.params);
-                                    let mut d = Diagnostic::error(
-                                        RuleCode::new("AG002"),
-                                        call.span.clone(),
-                                        format!(
-                                            "{}: unknown parameter '{}'",
-                                            call.full_name, kwarg.name,
-                                        ),
-                                    );
-                                    if let Some(ref s) = suggestion {
-                                        d = d.with_suggestion(format!("did you mean '{s}'?"));
-                                        // Autofix: replace the hallucinated kwarg name
-                                        let ks = &kwarg.name_span;
-                                        d = d.with_fix(TextEdit {
-                                            start_line: ks.start_line,
-                                            start_col: ks.start_col,
-                                            end_line: ks.end_line,
-                                            end_col: ks.end_col,
-                                            replacement: s.clone(),
-                                        });
+                        // AG001: attribute/method doesn't exist
+                        if !result.exists {
+                            let mut d = Diagnostic::error(
+                                RuleCode::new("AG001"),
+                                call.span.clone(),
+                                format!(
+                                    "{}.{}: no such attribute in module '{}'",
+                                    receiver, call.function, module
+                                ),
+                            );
+                            if let Some(ref suggestion) = result.closest_match {
+                                d = d.with_suggestion(format!("did you mean '{suggestion}'?"));
+                                // Autofix: replace the hallucinated attribute with the suggestion
+                                let fs = &call.function_span;
+                                d = d.with_fix(TextEdit {
+                                    start_line: fs.start_line,
+                                    start_col: fs.start_col,
+                                    end_line: fs.end_line,
+                                    end_col: fs.end_col,
+                                    replacement: suggestion.clone(),
+                                });
+                            }
+                            diagnostics.push(d);
+                            continue;
+                        }
+
+                        // AG002: non-existent keyword argument
+                        if let Some(ref sig) = result.signature {
+                            if !sig.has_var_keyword {
+                                for kwarg in &call.keyword_args {
+                                    if !sig.params.iter().any(|p| p.name == kwarg.name) {
+                                        let suggestion =
+                                            find_closest_param(&kwarg.name, &sig.params);
+                                        let mut d = Diagnostic::error(
+                                            RuleCode::new("AG002"),
+                                            call.span.clone(),
+                                            format!(
+                                                "{}: unknown parameter '{}'",
+                                                call.full_name, kwarg.name,
+                                            ),
+                                        );
+                                        if let Some(ref s) = suggestion {
+                                            d = d.with_suggestion(format!("did you mean '{s}'?"));
+                                            // Autofix: replace the hallucinated kwarg name
+                                            let ks = &kwarg.name_span;
+                                            d = d.with_fix(TextEdit {
+                                                start_line: ks.start_line,
+                                                start_col: ks.start_col,
+                                                end_line: ks.end_line,
+                                                end_col: ks.end_col,
+                                                replacement: s.clone(),
+                                            });
+                                        }
+                                        diagnostics.push(d);
                                     }
-                                    diagnostics.push(d);
                                 }
                             }
                         }
-                    }
 
-                    // AG003: deprecated
-                    if result.deprecated {
-                        diagnostics.push(
-                            Diagnostic::warning(
-                                RuleCode::new("AG003"),
-                                call.span.clone(),
-                                format!("{} is deprecated", call.full_name),
-                            )
-                            .with_suggestion("check documentation for replacement"),
-                        );
+                        // AG003: deprecated
+                        if result.deprecated {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    RuleCode::new("AG003"),
+                                    call.span.clone(),
+                                    format!("{} is deprecated", call.full_name),
+                                )
+                                .with_suggestion("check documentation for replacement"),
+                            );
+                        }
                     }
                 }
             }
-        }
         } // end if !cache.is_empty()
 
         // AG006: contextual mismatch (file extension vs function semantics)
@@ -202,7 +198,9 @@ impl ApiGuardLinter {
                 continue;
             }
             if let Some(ref filename) = call.first_string_arg {
-                if let Some(mismatch) = context_match::check_extension_match(&call.function, filename) {
+                if let Some(mismatch) =
+                    context_match::check_extension_match(&call.function, filename)
+                {
                     let correct_func = suggest_correct_function(&call.function, filename);
                     let mut d = Diagnostic::warning(
                         RuleCode::new("AG006"),
@@ -262,10 +260,7 @@ impl ApiGuardLinter {
                     Diagnostic::warning(
                         RuleCode::new("AG004"),
                         call.span.clone(),
-                        format!(
-                            "{}() called without module qualifier",
-                            call.function,
-                        ),
+                        format!("{}() called without module qualifier", call.function,),
                     )
                     .with_suggestion(format!("use {replacement}()"))
                     .with_fix(TextEdit {
@@ -347,19 +342,87 @@ static BUILTINS_SET: once_cell::sync::Lazy<std::collections::HashSet<&str>> =
     once_cell::sync::Lazy::new(|| PYTHON_BUILTINS.iter().copied().collect());
 
 const PYTHON_BUILTINS: &[&str] = &[
-    "abs", "all", "any", "ascii", "bin", "bool", "breakpoint", "bytearray",
-    "bytes", "callable", "chr", "classmethod", "compile", "complex",
-    "delattr", "dict", "dir", "divmod", "enumerate", "eval", "exec",
-    "filter", "float", "format", "frozenset", "getattr", "globals",
-    "hasattr", "hash", "help", "hex", "id", "input", "int", "isinstance",
-    "issubclass", "iter", "len", "list", "locals", "map", "max",
-    "memoryview", "min", "next", "object", "oct", "open", "ord", "pow",
-    "print", "property", "range", "repr", "reversed", "round", "set",
-    "setattr", "slice", "sorted", "staticmethod", "str", "sum", "super",
-    "tuple", "type", "vars", "zip", "__import__",
+    "abs",
+    "all",
+    "any",
+    "ascii",
+    "bin",
+    "bool",
+    "breakpoint",
+    "bytearray",
+    "bytes",
+    "callable",
+    "chr",
+    "classmethod",
+    "compile",
+    "complex",
+    "delattr",
+    "dict",
+    "dir",
+    "divmod",
+    "enumerate",
+    "eval",
+    "exec",
+    "filter",
+    "float",
+    "format",
+    "frozenset",
+    "getattr",
+    "globals",
+    "hasattr",
+    "hash",
+    "help",
+    "hex",
+    "id",
+    "input",
+    "int",
+    "isinstance",
+    "issubclass",
+    "iter",
+    "len",
+    "list",
+    "locals",
+    "map",
+    "max",
+    "memoryview",
+    "min",
+    "next",
+    "object",
+    "oct",
+    "open",
+    "ord",
+    "pow",
+    "print",
+    "property",
+    "range",
+    "repr",
+    "reversed",
+    "round",
+    "set",
+    "setattr",
+    "slice",
+    "sorted",
+    "staticmethod",
+    "str",
+    "sum",
+    "super",
+    "tuple",
+    "type",
+    "vars",
+    "zip",
+    "__import__",
     // common test/framework names that are not library imports
-    "self", "cls", "app", "db", "client", "request", "response",
-    "session", "config", "logger", "log",
+    "self",
+    "cls",
+    "app",
+    "db",
+    "client",
+    "request",
+    "response",
+    "session",
+    "config",
+    "logger",
+    "log",
 ];
 
 fn suggest_correct_function(current_func: &str, filename: &str) -> Option<String> {
@@ -421,10 +484,7 @@ fn resolve_module(receiver: &str, alias_map: &HashMap<String, String>) -> String
     }
 }
 
-fn find_closest_param(
-    name: &str,
-    params: &[introspect::ParamInfo],
-) -> Option<String> {
+fn find_closest_param(name: &str, params: &[introspect::ParamInfo]) -> Option<String> {
     let mut best: Option<(String, usize)> = None;
     for p in params {
         let dist = strsim::levenshtein(name, &p.name);

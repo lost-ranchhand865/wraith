@@ -20,8 +20,7 @@ static AI_COMMENT_RE: Lazy<Regex> = Lazy::new(|| {
 });
 
 static SUSPICIOUS_ROUTE_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"/(debug|test|internal|admin|_dev|__debug__|phpinfo|server-status)/")
-        .unwrap()
+    Regex::new(r"/(debug|test|internal|admin|_dev|__debug__|phpinfo|server-status)/").unwrap()
 });
 
 static AUTH_DECORATOR_RE: Lazy<Regex> = Lazy::new(|| {
@@ -34,15 +33,10 @@ static ROUTE_DECORATOR_RE: Lazy<Regex> = Lazy::new(|| {
         .unwrap()
 });
 
-static SOURCE_MAP_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(sourceMappingURL|\.map['"])"#)
-        .unwrap()
-});
+static SOURCE_MAP_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"(sourceMappingURL|\.map['"])"#).unwrap());
 
-const DEBUG_FUNCTIONS: &[&str] = &[
-    "print",
-    "breakpoint",
-];
+const DEBUG_FUNCTIONS: &[&str] = &["print", "breakpoint"];
 
 const DEBUG_QUALIFIED: &[(&str, &str)] = &[
     ("pdb", "set_trace"),
@@ -107,12 +101,21 @@ fn check_hardcoded_secrets(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
         let prefix_match = has_secret_prefix(unquoted);
 
         // Level 2: Character class analysis (Saha et al. 2020)
-        let has_whitespace = unquoted.contains(' ') || unquoted.contains('\n') || unquoted.contains('\t');
+        let has_whitespace =
+            unquoted.contains(' ') || unquoted.contains('\n') || unquoted.contains('\t');
         let has_dict_words = contains_dictionary_words(unquoted);
         let is_secret_charset = unquoted.len() >= 8
-            && unquoted.bytes().filter(|b| b.is_ascii_alphanumeric() || b"+-_/=.%".contains(b)).count() as f64
-                / unquoted.len() as f64 > 0.95;
-        let entropy = if unquoted.len() >= 8 { shannon_entropy(unquoted) } else { 0.0 };
+            && unquoted
+                .bytes()
+                .filter(|b| b.is_ascii_alphanumeric() || b"+-_/=.%".contains(b))
+                .count() as f64
+                / unquoted.len() as f64
+                > 0.95;
+        let entropy = if unquoted.len() >= 8 {
+            shannon_entropy(unquoted)
+        } else {
+            0.0
+        };
 
         // Level 3: Structural context — suffix-based exclusion (arxiv 2307.00714)
         let is_template_var = is_template_suffix(&assign.target);
@@ -170,7 +173,11 @@ fn check_hardcoded_secrets(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
         let mut d = Diagnostic::warning(
             RuleCode::new("VC001"),
             assign.span.clone(),
-            format!("hardcoded secret: {} = {}", assign.target, truncate_secret(value)),
+            format!(
+                "hardcoded secret: {} = {}",
+                assign.target,
+                truncate_secret(value)
+            ),
         )
         .with_suggestion(suggestion_text)
         .with_confidence(confidence);
@@ -207,8 +214,7 @@ fn check_ai_comments(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
 
 fn check_debug_calls(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
     for call in &info.calls {
-        let is_debug = DEBUG_FUNCTIONS.contains(&call.function.as_str())
-            && call.receiver.is_none()
+        let is_debug = DEBUG_FUNCTIONS.contains(&call.function.as_str()) && call.receiver.is_none()
             || DEBUG_QUALIFIED.iter().any(|(recv, func)| {
                 call.receiver.as_deref() == Some(*recv) && call.function == *func
             });
@@ -258,12 +264,7 @@ fn check_pdb_imports(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
     }
 }
 
-fn check_source_maps(
-    info: &FileInfo,
-    source: &str,
-    path: &Path,
-    diags: &mut Vec<Diagnostic>,
-) {
+fn check_source_maps(info: &FileInfo, source: &str, path: &Path, diags: &mut Vec<Diagnostic>) {
     // Check comments for sourceMappingURL
     for comment in &info.comments {
         if SOURCE_MAP_RE.is_match(&comment.text) {
@@ -303,14 +304,19 @@ fn check_source_maps(
     // Check for sourceMappingURL in raw source (catches cases not in comments)
     for (i, line) in source.lines().enumerate() {
         if line.contains("sourceMappingURL") {
-            let already_reported = info
-                .comments
-                .iter()
-                .any(|c| c.span.start_line == (i as u32 + 1) && c.text.contains("sourceMappingURL"));
+            let already_reported = info.comments.iter().any(|c| {
+                c.span.start_line == (i as u32 + 1) && c.text.contains("sourceMappingURL")
+            });
             if !already_reported {
                 diags.push(Diagnostic::warning(
                     RuleCode::new("VC005"),
-                    Span::new(path.to_path_buf(), i as u32 + 1, 0, i as u32 + 1, line.len() as u32),
+                    Span::new(
+                        path.to_path_buf(),
+                        i as u32 + 1,
+                        0,
+                        i as u32 + 1,
+                        line.len() as u32,
+                    ),
                     "source map reference exposed".to_string(),
                 ));
             }
@@ -414,26 +420,163 @@ static COMMON_WORDS_SET: Lazy<std::collections::HashSet<&str>> =
     Lazy::new(|| COMMON_WORDS.iter().copied().collect());
 
 const COMMON_WORDS: &[&str] = &[
-    "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
-    "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
-    "this", "but", "his", "by", "from", "they", "we", "say", "her",
-    "she", "or", "an", "will", "my", "one", "all", "would", "there",
-    "their", "what", "so", "up", "out", "if", "about", "who", "get",
-    "which", "go", "me", "when", "make", "can", "like", "time", "no",
-    "just", "him", "know", "take", "people", "into", "year", "your",
-    "good", "some", "could", "them", "see", "other", "than", "then",
-    "now", "look", "only", "come", "its", "over", "think", "also",
-    "back", "after", "use", "two", "how", "our", "work", "first",
-    "well", "way", "even", "new", "want", "because", "any", "these",
-    "give", "day", "most", "us", "are", "is", "was", "were", "been",
-    "has", "had", "may", "should", "must", "each", "where", "does",
-    "did", "been", "being", "having", "here", "very", "more", "many",
-    "such", "much", "own", "before", "between", "both", "same", "still",
+    "the",
+    "be",
+    "to",
+    "of",
+    "and",
+    "a",
+    "in",
+    "that",
+    "have",
+    "i",
+    "it",
+    "for",
+    "not",
+    "on",
+    "with",
+    "he",
+    "as",
+    "you",
+    "do",
+    "at",
+    "this",
+    "but",
+    "his",
+    "by",
+    "from",
+    "they",
+    "we",
+    "say",
+    "her",
+    "she",
+    "or",
+    "an",
+    "will",
+    "my",
+    "one",
+    "all",
+    "would",
+    "there",
+    "their",
+    "what",
+    "so",
+    "up",
+    "out",
+    "if",
+    "about",
+    "who",
+    "get",
+    "which",
+    "go",
+    "me",
+    "when",
+    "make",
+    "can",
+    "like",
+    "time",
+    "no",
+    "just",
+    "him",
+    "know",
+    "take",
+    "people",
+    "into",
+    "year",
+    "your",
+    "good",
+    "some",
+    "could",
+    "them",
+    "see",
+    "other",
+    "than",
+    "then",
+    "now",
+    "look",
+    "only",
+    "come",
+    "its",
+    "over",
+    "think",
+    "also",
+    "back",
+    "after",
+    "use",
+    "two",
+    "how",
+    "our",
+    "work",
+    "first",
+    "well",
+    "way",
+    "even",
+    "new",
+    "want",
+    "because",
+    "any",
+    "these",
+    "give",
+    "day",
+    "most",
+    "us",
+    "are",
+    "is",
+    "was",
+    "were",
+    "been",
+    "has",
+    "had",
+    "may",
+    "should",
+    "must",
+    "each",
+    "where",
+    "does",
+    "did",
+    "been",
+    "being",
+    "having",
+    "here",
+    "very",
+    "more",
+    "many",
+    "such",
+    "much",
+    "own",
+    "before",
+    "between",
+    "both",
+    "same",
+    "still",
     // AI/tech words common in prompts
-    "assistant", "helpful", "response", "generate", "analyze", "provide",
-    "following", "based", "using", "given", "output", "input", "please",
-    "system", "user", "message", "content", "format", "return", "data",
-    "text", "code", "function", "class", "error", "result", "value",
+    "assistant",
+    "helpful",
+    "response",
+    "generate",
+    "analyze",
+    "provide",
+    "following",
+    "based",
+    "using",
+    "given",
+    "output",
+    "input",
+    "please",
+    "system",
+    "user",
+    "message",
+    "content",
+    "format",
+    "return",
+    "data",
+    "text",
+    "code",
+    "function",
+    "class",
+    "error",
+    "result",
+    "value",
 ];
 
 /// Structural suffix exclusion (arxiv 2307.00714).

@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::path::PathBuf;
 
 fn collect_py_files(dir: &str) -> Vec<(PathBuf, String)> {
@@ -43,16 +43,13 @@ fn bench_parse(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("parse");
 
-    group.bench_function(
-        BenchmarkId::new("tree-sitter parse", file_count),
-        |b| {
-            b.iter(|| {
-                for (_, source) in &files {
-                    black_box(codeguard_ast::parse_python(source));
-                }
-            });
-        },
-    );
+    group.bench_function(BenchmarkId::new("tree-sitter parse", file_count), |b| {
+        b.iter(|| {
+            for (_, source) in &files {
+                black_box(codeguard_ast::parse_python(source));
+            }
+        });
+    });
 
     // Pre-parse for extraction bench
     let parsed: Vec<_> = files
@@ -62,38 +59,29 @@ fn bench_parse(c: &mut Criterion) {
         })
         .collect();
 
-    group.bench_function(
-        BenchmarkId::new("extract FileInfo", file_count),
-        |b| {
-            b.iter(|| {
-                for (path, source, tree) in &parsed {
-                    black_box(codeguard_ast::extract_file_info(tree, source, path));
-                }
-            });
-        },
-    );
+    group.bench_function(BenchmarkId::new("extract FileInfo", file_count), |b| {
+        b.iter(|| {
+            for (path, source, tree) in &parsed {
+                black_box(codeguard_ast::extract_file_info(tree, source, path));
+            }
+        });
+    });
 
-    group.bench_function(
-        BenchmarkId::new("build SymbolTable", file_count),
-        |b| {
-            b.iter(|| {
-                for (_, source, tree) in &parsed {
-                    black_box(codeguard_ast::SymbolTable::build(tree, source));
-                }
-            });
-        },
-    );
+    group.bench_function(BenchmarkId::new("build SymbolTable", file_count), |b| {
+        b.iter(|| {
+            for (_, source, tree) in &parsed {
+                black_box(codeguard_ast::SymbolTable::build(tree, source));
+            }
+        });
+    });
 
-    group.bench_function(
-        BenchmarkId::new("vibe lint", file_count),
-        |b| {
-            b.iter(|| {
-                for (path, source, tree) in &parsed {
-                    black_box(codeguard_vibe::lint_vibe(tree, source, path));
-                }
-            });
-        },
-    );
+    group.bench_function(BenchmarkId::new("vibe lint", file_count), |b| {
+        b.iter(|| {
+            for (path, source, tree) in &parsed {
+                black_box(codeguard_vibe::lint_vibe(tree, source, path));
+            }
+        });
+    });
 
     group.bench_function(
         BenchmarkId::new("full pipeline (parse+extract+symtable+vibe)", file_count),

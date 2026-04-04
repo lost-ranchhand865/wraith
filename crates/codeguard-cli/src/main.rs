@@ -133,12 +133,26 @@ fn main() -> Result<()> {
 
             let output_format: OutputFormat = format.parse().unwrap_or(OutputFormat::Text);
 
-            run_check(&config, &paths, output_format, include_tests, min_confidence, show_diff)
+            run_check(
+                &config,
+                &paths,
+                output_format,
+                include_tests,
+                min_confidence,
+                show_diff,
+            )
         }
     }
 }
 
-fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat, include_tests: bool, min_confidence: f64, show_diff: bool) -> Result<()> {
+fn run_check(
+    config: &Config,
+    paths: &[PathBuf],
+    format: OutputFormat,
+    include_tests: bool,
+    min_confidence: f64,
+    show_diff: bool,
+) -> Result<()> {
     let start_time = std::time::Instant::now();
 
     // 1. Discover .py files
@@ -193,7 +207,11 @@ fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat, include_t
                 let project_root = paths
                     .first()
                     .and_then(|p| {
-                        if p.is_dir() { Some(p.clone()) } else { p.parent().map(|pp| pp.to_path_buf()) }
+                        if p.is_dir() {
+                            Some(p.clone())
+                        } else {
+                            p.parent().map(|pp| pp.to_path_buf())
+                        }
                     })
                     .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
                 ph.detect_local_packages(&project_root);
@@ -298,9 +316,9 @@ fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat, include_t
 
     // 7. Separate offline-unverified PH002 from real diagnostics
     let (offline_unverified, real_diagnostics): (Vec<_>, Vec<_>) = if config.offline {
-        diagnostics.into_iter().partition(|d| {
-            d.code.0 == "PH002" && d.message.contains("unable to verify")
-        })
+        diagnostics
+            .into_iter()
+            .partition(|d| d.code.0 == "PH002" && d.message.contains("unable to verify"))
     } else {
         (vec![], diagnostics)
     };
@@ -403,10 +421,7 @@ fn discover_files(paths: &[PathBuf], include_tests: bool) -> Result<Vec<PathBuf>
 }
 
 fn is_test_file(path: &Path) -> bool {
-    let name = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
     if name == "conftest.py" || name.starts_with("test_") || name.ends_with("_test.py") {
         return true;
     }
@@ -531,14 +546,8 @@ fn print_diff(
             if fixed != *source {
                 // Print unified diff
                 let path_str = path.display().to_string();
-                println!(
-                    "{}",
-                    format!("--- a/{path_str}").red()
-                );
-                println!(
-                    "{}",
-                    format!("+++ b/{path_str}").green()
-                );
+                println!("{}", format!("--- a/{path_str}").red());
+                println!("{}", format!("+++ b/{path_str}").green());
 
                 let old_lines: Vec<&str> = source.lines().collect();
                 let new_lines: Vec<&str> = fixed.lines().collect();
@@ -604,21 +613,42 @@ fn print_diff(
 
 fn print_rules() {
     let rules = rules::all_rules();
-    let pedantic: std::collections::HashSet<&str> =
-        codeguard_core::config::PEDANTIC_RULES.iter().copied().collect();
+    let pedantic: std::collections::HashSet<&str> = codeguard_core::config::PEDANTIC_RULES
+        .iter()
+        .copied()
+        .collect();
 
     let groups = [
-        ("AG", "API Guard", "Detects hallucinated APIs, missing imports, deprecated calls"),
-        ("PH", "Phantom", "Validates packages against PyPI, detects typosquatting"),
-        ("VC", "Vibe Check", "Catches secrets, AI artifacts, debug code, supply chain risks"),
+        (
+            "AG",
+            "API Guard",
+            "Detects hallucinated APIs, missing imports, deprecated calls",
+        ),
+        (
+            "PH",
+            "Phantom",
+            "Validates packages against PyPI, detects typosquatting",
+        ),
+        (
+            "VC",
+            "Vibe Check",
+            "Catches secrets, AI artifacts, debug code, supply chain risks",
+        ),
     ];
 
     for (prefix, name, desc) in &groups {
-        println!("\n  {} {}", name.bold(), format!("({}0xx)", prefix).dimmed());
+        println!(
+            "\n  {} {}",
+            name.bold(),
+            format!("({}0xx)", prefix).dimmed()
+        );
         println!("  {}", desc.dimmed());
         println!();
 
-        let group_rules: Vec<_> = rules.iter().filter(|r| r.code.0.starts_with(prefix)).collect();
+        let group_rules: Vec<_> = rules
+            .iter()
+            .filter(|r| r.code.0.starts_with(prefix))
+            .collect();
         for rule in group_rules {
             let code_colored = if rule.code.0.starts_with("AG") {
                 rule.code.0.red().bold().to_string()
@@ -642,11 +672,7 @@ fn print_rules() {
 
             println!(
                 "    {} {:<28} {:>3}  {}{}",
-                code_colored,
-                rule.name,
-                fix_marker,
-                rule.description,
-                pedantic_marker,
+                code_colored, rule.name, fix_marker, rule.description, pedantic_marker,
             );
         }
     }
@@ -654,7 +680,12 @@ fn print_rules() {
     println!(
         "  {} rules total ({} auto-fixable)",
         rules.len().to_string().bold(),
-        rules.iter().filter(|r| r.fixable).count().to_string().bold(),
+        rules
+            .iter()
+            .filter(|r| r.fixable)
+            .count()
+            .to_string()
+            .bold(),
     );
     println!();
 }

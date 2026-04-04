@@ -22,8 +22,13 @@ pub fn check_taint(tree: &Tree, source: &str, path: &Path) -> Vec<Diagnostic> {
         if is_leak_sink(call) {
             // Check if any argument to this sink contains a tainted name
             // We check the call's source text for tainted variable references
-            let call_text = &source[byte_range(call.span.start_line, call.span.start_col,
-                                                call.span.end_line, call.span.end_col, source)];
+            let call_text = &source[byte_range(
+                call.span.start_line,
+                call.span.start_col,
+                call.span.end_line,
+                call.span.end_col,
+                source,
+            )];
             for name in &tainted {
                 // Check if the tainted name appears in the call arguments
                 // Simple heuristic: name appears as a word boundary in the call text
@@ -96,7 +101,9 @@ fn collect_tainted_names(info: &FileInfo) -> HashSet<String> {
 fn shannon_entropy(s: &str) -> f64 {
     let mut freq = [0u32; 256];
     let len = s.len() as f64;
-    if len == 0.0 { return 0.0; }
+    if len == 0.0 {
+        return 0.0;
+    }
     for &b in s.as_bytes() {
         freq[b as usize] += 1;
     }
@@ -142,7 +149,7 @@ fn is_secret_name_bigram(name: &str) -> bool {
         ("auth", "secret"),
         ("bot", "token"),
         ("client", "secret"),
-        ("client", "id"),    // debatable, but often sensitive
+        ("client", "id"), // debatable, but often sensitive
         ("bearer", "token"),
         ("refresh", "token"),
         ("session", "token"),
@@ -162,19 +169,51 @@ fn is_secret_name_bigram(name: &str) -> bool {
 
     // Config-indicating segments that neutralize "token"
     const CONFIG_MODIFIERS: &[&str] = &[
-        "max", "min", "num", "count", "total", "default", "timeout",
-        "limit", "size", "length", "retry", "poll", "interval",
-        "batch", "chunk", "page", "per",
+        "max", "min", "num", "count", "total", "default", "timeout", "limit", "size", "length",
+        "retry", "poll", "interval", "batch", "chunk", "page", "per",
     ];
 
     const CONFIG_NOUNS: &[&str] = &[
-        "count", "limit", "size", "length", "timeout", "interval",
-        "retries", "attempts", "path", "dir", "directory", "folder",
-        "file", "name", "host", "port", "url", "uri", "endpoint",
-        "version", "level", "mode", "type", "format", "encoding",
-        "timezone", "locale", "region", "zone", "env", "environment",
-        "prefix", "suffix", "separator", "delimiter",
-        "processed", "remaining", "used", "available", "capacity",
+        "count",
+        "limit",
+        "size",
+        "length",
+        "timeout",
+        "interval",
+        "retries",
+        "attempts",
+        "path",
+        "dir",
+        "directory",
+        "folder",
+        "file",
+        "name",
+        "host",
+        "port",
+        "url",
+        "uri",
+        "endpoint",
+        "version",
+        "level",
+        "mode",
+        "type",
+        "format",
+        "encoding",
+        "timezone",
+        "locale",
+        "region",
+        "zone",
+        "env",
+        "environment",
+        "prefix",
+        "suffix",
+        "separator",
+        "delimiter",
+        "processed",
+        "remaining",
+        "used",
+        "available",
+        "capacity",
     ];
 
     // Check all adjacent segment pairs
@@ -189,7 +228,10 @@ fn is_secret_name_bigram(name: &str) -> bool {
 
     // Check if name contains "token" or "secret" or "password"
     let has_sensitive_word = segments.iter().any(|s| {
-        matches!(*s, "token" | "secret" | "password" | "passwd" | "key" | "credential")
+        matches!(
+            *s,
+            "token" | "secret" | "password" | "passwd" | "key" | "credential"
+        )
     });
 
     if !has_sensitive_word {
@@ -224,7 +266,10 @@ fn is_leak_sink(call: &CallInfo) -> bool {
         let r = recv.as_str();
         if r == "logging" || r == "logger" || r == "log" {
             let func = call.function.as_str();
-            return matches!(func, "info" | "debug" | "warning" | "error" | "critical" | "exception" | "log");
+            return matches!(
+                func,
+                "info" | "debug" | "warning" | "error" | "critical" | "exception" | "log"
+            );
         }
     }
     false
@@ -251,7 +296,13 @@ fn contains_name(text: &str, name: &str) -> bool {
     false
 }
 
-fn byte_range(start_line: u32, start_col: u32, end_line: u32, end_col: u32, source: &str) -> std::ops::Range<usize> {
+fn byte_range(
+    start_line: u32,
+    start_col: u32,
+    end_line: u32,
+    end_col: u32,
+    source: &str,
+) -> std::ops::Range<usize> {
     let mut line = 1u32;
     let mut start_byte = 0;
     let mut end_byte = source.len();
@@ -297,11 +348,13 @@ mod tests {
 
     #[test]
     fn test_print_secret_from_env() {
-        let d = check(r#"
+        let d = check(
+            r#"
 import os
 api_key = os.environ["API_KEY"]
 print(api_key)
-"#);
+"#,
+        );
         let vc011: Vec<_> = d.iter().filter(|d| d.code.0 == "VC011").collect();
         assert_eq!(vc011.len(), 1);
         assert!(vc011[0].message.contains("api_key"));
@@ -309,32 +362,38 @@ print(api_key)
 
     #[test]
     fn test_log_secret() {
-        let d = check(r#"
+        let d = check(
+            r#"
 import logging
 password = "secret123"
 logging.info(password)
-"#);
+"#,
+        );
         let vc011: Vec<_> = d.iter().filter(|d| d.code.0 == "VC011").collect();
         assert_eq!(vc011.len(), 1);
     }
 
     #[test]
     fn test_no_leak_if_not_tainted() {
-        let d = check(r#"
+        let d = check(
+            r#"
 name = "John"
 print(name)
-"#);
+"#,
+        );
         let vc011: Vec<_> = d.iter().filter(|d| d.code.0 == "VC011").collect();
         assert_eq!(vc011.len(), 0);
     }
 
     #[test]
     fn test_no_leak_if_no_sink() {
-        let d = check(r#"
+        let d = check(
+            r#"
 import os
 api_key = os.environ["API_KEY"]
 result = api_key.strip()
-"#);
+"#,
+        );
         let vc011: Vec<_> = d.iter().filter(|d| d.code.0 == "VC011").collect();
         assert_eq!(vc011.len(), 0);
     }

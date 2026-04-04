@@ -31,3 +31,6 @@ venv/
 # OS
 Thumbs.db
 CLAUDE.md
+scripts/benchmark_results.jsonl
+scripts/benchmark_summary.json
+scripts/benchmark_errors.log

@@ -391,8 +391,8 @@ fn extract_decorated_definition(
                             if arg_child.kind() == "string" {
                                 let s = node_text(arg_child, source);
                                 let unquoted = s
-                                    .trim_start_matches(|c| c == '\'' || c == '"')
-                                    .trim_end_matches(|c| c == '\'' || c == '"');
+                                    .trim_start_matches(['\'', '"'])
+                                    .trim_end_matches(['\'', '"']);
                                 args.push(unquoted.to_string());
                             }
                         }

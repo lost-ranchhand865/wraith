@@ -1,6 +1,10 @@
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
+/// Rules that are off by default (too noisy for most projects).
+/// Enabled via --pedantic or --select VC003.
+pub const PEDANTIC_RULES: &[&str] = &["VC003"];
+
 #[derive(Debug, Deserialize, Default, Clone)]
 #[serde(default)]
 pub struct Config {
@@ -10,6 +14,7 @@ pub struct Config {
     pub offline: bool,
     pub fix: bool,
     pub verbose: bool,
+    pub pedantic: bool,
     pub python_executable: Option<PathBuf>,
     pub cache_dir: Option<PathBuf>,
     pub pypi_cache_ttl_secs: Option<u64>,
@@ -34,12 +39,18 @@ impl Config {
     }
 
     pub fn is_rule_enabled(&self, code: &str) -> bool {
+        // Pedantic rules are off by default unless --pedantic or explicitly --select'd
+        let is_pedantic = PEDANTIC_RULES.iter().any(|&r| code.to_uppercase().starts_with(&r.to_uppercase()));
         match &self.select {
-            None => true,
+            None => {
+                if is_pedantic && !self.pedantic {
+                    return false;
+                }
+                true
+            }
             Some(selectors) => selectors.iter().any(|s| {
                 let s_upper = s.to_uppercase();
                 let code_upper = code.to_uppercase();
-                // "AG001".starts_with("AG") OR "AG".starts_with("AG001") — both should match
                 code_upper.starts_with(&s_upper) || s_upper.starts_with(&code_upper)
             }),
         }

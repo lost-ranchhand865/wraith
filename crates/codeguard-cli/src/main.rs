@@ -43,6 +43,10 @@ enum Commands {
         #[arg(long)]
         strict: bool,
 
+        /// Enable pedantic rules (VC003 print detection — off by default)
+        #[arg(long)]
+        pedantic: bool,
+
         /// Show verbose output
         #[arg(long, short)]
         verbose: bool,
@@ -85,6 +89,7 @@ fn main() -> Result<()> {
             fix,
             diff,
             strict,
+            pedantic,
             verbose,
             offline,
             include_tests,
@@ -106,6 +111,7 @@ fn main() -> Result<()> {
                 config.select = Some(sel);
             }
             config.fix = fix;
+            config.pedantic = pedantic;
             let show_diff = diff;
             config.strict = strict;
             config.verbose = verbose;

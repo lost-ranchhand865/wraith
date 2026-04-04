@@ -62,11 +62,10 @@ for candidate in [
 
 def search_github_repos(query: str, count: int, page: int = 1) -> list[dict]:
     """Search GitHub for repos matching query. Returns list of {name, clone_url, stars, description}."""
-    per_page = min(count, 100)
+    per_page = min(count, 30)
     cmd = [
         "gh", "api", "search/repositories",
         "-X", "GET",
-        "--paginate",
         "-f", f"q={query}",
         "-f", f"per_page={per_page}",
         "-f", f"page={page}",

@@ -295,9 +295,12 @@ impl ApiGuardLinter {
             if let Some(ref receiver) = call.receiver {
                 let top = receiver.split('.').next().unwrap_or(receiver);
 
+                // Skip single-char receivers — almost always local variables (x, e, f, v)
+                if top.len() < 2 {
+                    continue;
+                }
+
                 // PEP 227: check if name is visible at the usage line.
-                // Module-level bindings always visible. Function-local bindings
-                // only visible within their enclosing scope range.
                 if symtable.is_visible_at(top, call.span.start_line) {
                     continue;
                 }

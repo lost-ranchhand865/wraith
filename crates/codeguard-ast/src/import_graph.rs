@@ -115,7 +115,7 @@ fn path_to_module(path: &Path, root: &Path) -> String {
 }
 
 fn get_module_level_bindings(
-    symtable: &crate::symbols::SymbolTable,
+    _symtable: &crate::symbols::SymbolTable,
 ) -> Option<HashSet<String>> {
     // This is a simplified version — returns all names bound at depth 0
     // Full implementation would inspect the symbol table's bindings directly

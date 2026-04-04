@@ -8,3 +8,11 @@ codeguard-core = { workspace = true }
 tree-sitter = { workspace = true }
 tree-sitter-python = { workspace = true }
 once_cell = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+codeguard-vibe = { workspace = true }
+
+[[bench]]
+name = "parse_bench"
+harness = false

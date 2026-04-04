@@ -35,6 +35,10 @@ enum Commands {
         #[arg(long)]
         fix: bool,
 
+        /// Show unified diff of fixes without applying (use with --fix)
+        #[arg(long)]
+        diff: bool,
+
         /// Exit with code 1 if any issues found
         #[arg(long)]
         strict: bool,
@@ -79,6 +83,7 @@ fn main() -> Result<()> {
             paths,
             select,
             fix,
+            diff,
             strict,
             verbose,
             offline,
@@ -101,18 +106,19 @@ fn main() -> Result<()> {
                 config.select = Some(sel);
             }
             config.fix = fix;
+            let show_diff = diff;
             config.strict = strict;
             config.verbose = verbose;
             config.offline = offline;
 
             let output_format: OutputFormat = format.parse().unwrap_or(OutputFormat::Text);
 
-            run_check(&config, &paths, output_format, include_tests, min_confidence)
+            run_check(&config, &paths, output_format, include_tests, min_confidence, show_diff)
         }
     }
 }
 
-fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat, include_tests: bool, min_confidence: f64) -> Result<()> {
+fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat, include_tests: bool, min_confidence: f64, show_diff: bool) -> Result<()> {
     // 1. Discover .py files
     let files = discover_files(paths, include_tests)?;
     if files.is_empty() {
@@ -282,7 +288,11 @@ fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat, include_t
 
     // 8. Apply fixes if requested
     if config.fix {
-        apply_fixes(&parsed, &diagnostics)?;
+        if show_diff {
+            print_diff(&parsed, &diagnostics)?;
+        } else {
+            apply_fixes(&parsed, &diagnostics)?;
+        }
     }
 
     // 9. Report
@@ -460,6 +470,97 @@ fn apply_text_edits(source: &str, edits: &[&TextEdit]) -> String {
         }
     }
     result
+}
+
+fn print_diff(
+    parsed: &[(PathBuf, String, tree_sitter::Tree)],
+    diagnostics: &[Diagnostic],
+) -> Result<()> {
+    use std::collections::HashMap;
+
+    let mut fixes_by_file: HashMap<&PathBuf, Vec<&TextEdit>> = HashMap::new();
+    for d in diagnostics {
+        if let Some(ref fix) = d.fix {
+            let file = &d.span.file;
+            fixes_by_file.entry(file).or_default().push(fix);
+        }
+    }
+
+    for (path, source, _) in parsed {
+        if let Some(fixes) = fixes_by_file.get::<PathBuf>(path) {
+            let fixed = apply_text_edits(source, fixes);
+            if fixed != *source {
+                // Print unified diff
+                let path_str = path.display().to_string();
+                println!(
+                    "{}",
+                    format!("--- a/{path_str}").red()
+                );
+                println!(
+                    "{}",
+                    format!("+++ b/{path_str}").green()
+                );
+
+                let old_lines: Vec<&str> = source.lines().collect();
+                let new_lines: Vec<&str> = fixed.lines().collect();
+
+                // Simple line-by-line diff
+                let max_len = old_lines.len().max(new_lines.len());
+                let mut i = 0;
+                while i < max_len {
+                    let old_line = old_lines.get(i).copied().unwrap_or("");
+                    let new_line = new_lines.get(i).copied().unwrap_or("");
+                    if old_line != new_line {
+                        // Find hunk bounds (3 lines context)
+                        let hunk_start = i.saturating_sub(3);
+                        let mut hunk_end = i + 1;
+                        // Extend hunk to include consecutive changes
+                        while hunk_end < max_len {
+                            let o = old_lines.get(hunk_end).copied().unwrap_or("");
+                            let n = new_lines.get(hunk_end).copied().unwrap_or("");
+                            if o == n {
+                                break;
+                            }
+                            hunk_end += 1;
+                        }
+                        let hunk_end = (hunk_end + 3).min(max_len);
+
+                        println!(
+                            "{}",
+                            format!(
+                                "@@ -{},{} +{},{} @@",
+                                hunk_start + 1,
+                                hunk_end - hunk_start,
+                                hunk_start + 1,
+                                hunk_end - hunk_start
+                            )
+                            .cyan()
+                        );
+
+                        for j in hunk_start..hunk_end {
+                            let o = old_lines.get(j).copied().unwrap_or("");
+                            let n = new_lines.get(j).copied().unwrap_or("");
+                            if o == n {
+                                println!(" {o}");
+                            } else {
+                                if !o.is_empty() || old_lines.get(j).is_some() {
+                                    println!("{}", format!("-{o}").red());
+                                }
+                                if !n.is_empty() || new_lines.get(j).is_some() {
+                                    println!("{}", format!("+{n}").green());
+                                }
+                            }
+                        }
+                        i = hunk_end;
+                    } else {
+                        i += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn print_rules() {

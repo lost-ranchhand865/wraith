@@ -25,6 +25,7 @@ fn fix(_py: Python<'_>, source: &str, filename: &str) -> PyResult<String> {
 
     let mut diagnostics = Vec::new();
     diagnostics.extend(codeguard_vibe::lint_vibe(&tree, source, &path));
+    diagnostics.extend(codeguard_vibe::taint::check_taint(&tree, source, &path));
 
     let fixes: Vec<_> = diagnostics
         .iter()
@@ -62,6 +63,7 @@ fn check_source_impl(py: Python<'_>, source: &str, filename: &str) -> PyResult<V
 
     let mut diagnostics = Vec::new();
     diagnostics.extend(codeguard_vibe::lint_vibe(&tree, source, &path));
+    diagnostics.extend(codeguard_vibe::taint::check_taint(&tree, source, &path));
 
     let results: Vec<PyObject> = diagnostics
         .iter()
@@ -74,6 +76,7 @@ fn check_source_impl(py: Python<'_>, source: &str, filename: &str) -> PyResult<V
             dict.set_item("message", &d.message).unwrap();
             dict.set_item("suggestion", d.suggestion.as_deref()).unwrap();
             dict.set_item("fixable", d.fix.is_some()).unwrap();
+            dict.set_item("confidence", d.confidence).unwrap();
             dict.into_py(py)
         })
         .collect();

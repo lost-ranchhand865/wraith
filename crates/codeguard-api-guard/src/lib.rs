@@ -247,8 +247,8 @@ impl ApiGuardLinter {
             if from_imported.contains(&call.function) {
                 continue;
             }
-            // Skip if name is bound in symbol table (parameter, local var, etc.)
-            if symtable.is_bound(&call.function) {
+            // Skip if name is visible at this line (parameter, local var in enclosing scope)
+            if symtable.is_visible_at(&call.function, call.span.start_line) {
                 continue;
             }
             // Skip builtins
@@ -295,9 +295,10 @@ impl ApiGuardLinter {
             if let Some(ref receiver) = call.receiver {
                 let top = receiver.split('.').next().unwrap_or(receiver);
 
-                // Skip if name is bound anywhere in the file (as import, param, local, etc.)
-                // Any binding means this is a known name, not a missing import.
-                if symtable.is_bound(top) {
+                // PEP 227: check if name is visible at the usage line.
+                // Module-level bindings always visible. Function-local bindings
+                // only visible within their enclosing scope range.
+                if symtable.is_visible_at(top, call.span.start_line) {
                     continue;
                 }
 

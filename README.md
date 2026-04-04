@@ -9,7 +9,7 @@ An extremely fast AI code linter, written in Rust.
 *Catches what your AI forgot to check* — hallucinated APIs, phantom packages, hardcoded secrets, AI artifacts, and supply chain risks. 20 rules, zero config.
 
 <p align="center">
-  <img src="assets/demo.gif" alt="wraith demo" width="880">
+  <img src="assets/demo.gif" alt="wraith demo" width="600">
 </p>
 
 ```

@@ -87,6 +87,7 @@ impl ApiGuardLinter {
     /// Lint a single file (call after prefetch)
     pub fn lint(&self, tree: &Tree, source: &str, path: &Path) -> Vec<Diagnostic> {
         let info = extract_file_info(tree, source, path);
+        let symtable = codeguard_ast::SymbolTable::build(tree, source);
         let cache = self.results.lock().unwrap();
         let mut diagnostics = Vec::new();
 
@@ -270,27 +271,34 @@ impl ApiGuardLinter {
             }
         }
 
-        // AG005: module used but never imported
-        let mut imported_names: HashSet<String> = HashSet::new();
-        for imp in &info.imports {
-            for name in &imp.names {
-                let actual = name.alias.as_ref().unwrap_or(&name.name);
-                imported_names.insert(actual.clone());
-            }
-            // Also track the top-level module
-            imported_names.insert(imp.module.clone());
-        }
-        // Common alias → full import statement
+        // AG005: module used but never imported (symbol table approach)
+        // Two-pass: symbol table already built above tells us what each name is bound to.
+        // If X.method() and X is bound as import → already checked by AG001-AG003.
+        // If X is bound as local (assignment, param, for, with) → skip.
+        // If X is NOT bound at all → it's used but never defined. Flag if it looks like a module.
         let alias_imports = common_alias_map();
         let mut reported_modules: HashSet<String> = HashSet::new();
         for call in &info.calls {
+            // Only check calls where receiver is a plain identifier chain (pd.X, os.path.X)
+            // Skip calls on expressions: super().X, Path(x).X, "str".X, obj[i].X
+            if !call.receiver_is_name {
+                continue;
+            }
             if let Some(ref receiver) = call.receiver {
                 let top = receiver.split('.').next().unwrap_or(receiver);
-                if !imported_names.contains(top)
-                    && !is_python_builtin(top)
-                    && !looks_like_local_var(top)
-                    && reported_modules.insert(top.to_string())
-                {
+
+                // Skip if name is bound anywhere in this file (import, local, param, etc.)
+                if symtable.is_bound(top) {
+                    continue;
+                }
+
+                // Skip Python builtins
+                if is_python_builtin(top) {
+                    continue;
+                }
+
+                // Name is used but never bound — likely a missing import
+                if reported_modules.insert(top.to_string()) {
                     let import_stmt = alias_imports
                         .get(top)
                         .map(|s| s.to_string())
@@ -316,18 +324,6 @@ impl ApiGuardLinter {
 
         diagnostics
     }
-}
-
-fn looks_like_local_var(name: &str) -> bool {
-    // Single char (x, y, i, f), starts with quote, lowercase single word < 4 chars
-    name.len() <= 1
-        || name.starts_with('\"')
-        || name.starts_with('\'')
-        || name.starts_with('(')
-        || name.starts_with('[')
-        || name.starts_with('{')
-        || name.starts_with('f')  && name.len() > 1 && (name.as_bytes()[1] == b'\'' || name.as_bytes()[1] == b'\"')
-        || (name.len() <= 3 && name.chars().all(|c| c.is_lowercase()))
 }
 
 fn is_python_builtin(name: &str) -> bool {

@@ -35,6 +35,8 @@ pub struct KeywordArg {
 #[derive(Debug, Clone)]
 pub struct CallInfo {
     pub receiver: Option<String>,
+    /// true when receiver is a plain identifier (e.g. `pd`), false for calls/subscripts/literals
+    pub receiver_is_name: bool,
     pub function: String,
     pub full_name: String,
     pub function_span: Span,
@@ -229,9 +231,16 @@ fn extract_call(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &m
     let func_node = node.child_by_field_name("function");
     let args_node = node.child_by_field_name("arguments");
 
-    let (receiver, function, full_name, func_span) = match func_node {
+    let (receiver, receiver_is_name, function, full_name, func_span) = match func_node {
         Some(f) if f.kind() == "attribute" => {
-            let obj = f.child_by_field_name("object").map(|n| node_text(n, source));
+            let obj_node = f.child_by_field_name("object");
+            let obj = obj_node.map(|n| node_text(n, source));
+            // Check if object is a plain identifier vs call/subscript/literal
+            let obj_is_name = obj_node.map_or(false, |n| {
+                n.kind() == "identifier" || n.kind() == "dotted_name"
+                    || (n.kind() == "attribute"
+                        && is_identifier_chain(n, source))
+            });
             let attr_node = f.child_by_field_name("attribute");
             let attr = attr_node
                 .map(|n| node_text(n, source))
@@ -240,12 +249,12 @@ fn extract_call(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &m
             let aspan = attr_node
                 .map(|n| idx.span_from_node(n, path))
                 .unwrap_or_else(|| idx.span_from_node(f, path));
-            (obj, attr, full, aspan)
+            (obj, obj_is_name, attr, full, aspan)
         }
         Some(f) if f.kind() == "identifier" => {
             let name = node_text(f, source);
             let sp = idx.span_from_node(f, path);
-            (None, name.clone(), name, sp)
+            (None, false, name.clone(), name, sp)
         }
         _ => return,
     };
@@ -285,6 +294,7 @@ fn extract_call(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &m
 
     info.calls.push(CallInfo {
         receiver,
+        receiver_is_name,
         function,
         full_name,
         function_span: func_span,
@@ -388,6 +398,20 @@ fn extract_decorated_definition(
                 }
             }
         }
+    }
+}
+
+/// Check if an attribute node is a pure identifier chain (a.b.c) vs containing calls/subscripts.
+fn is_identifier_chain(node: Node, _source: &str) -> bool {
+    match node.kind() {
+        "identifier" => true,
+        "attribute" => {
+            node.child_by_field_name("object")
+                .map_or(false, |obj| {
+                    obj.kind() == "identifier" || (obj.kind() == "attribute" && is_identifier_chain(obj, _source))
+                })
+        }
+        _ => false,
     }
 }
 

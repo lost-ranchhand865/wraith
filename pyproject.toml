@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "wraith"
-version = "0.1.0"
+version = "0.2.0"
 description = "Deterministic linter for AI-generated Python code"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -21,11 +21,9 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/Seinarukiro2/codeguard"
+Repository = "https://github.com/Seinarukiro2/wraith"
 
 [tool.maturin]
-manifest-path = "python/wraith/Cargo.toml"
-features = ["pyo3/extension-module"]
-python-source = "python"
-# Also include the CLI binary
-bindings = "pyo3"
+manifest-path = "crates/codeguard-cli/Cargo.toml"
+bindings = "bin"
+strip = true

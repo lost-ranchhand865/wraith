@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-const INTROSPECT_SCRIPT: &str = r#"
+const INTROSPECT_SCRIPT: &str = r##"
 import sys, json, importlib, inspect, warnings
 
 def introspect(module_name, attr_name):
@@ -60,12 +60,48 @@ def introspect(module_name, attr_name):
         except (ValueError, TypeError):
             pass
 
-        # Check deprecation
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always", DeprecationWarning)
+        # Check deprecation — 4 tiers (PEP 702 > source analysis > descriptor > docstring)
+        # Tier 1: PEP 702 __deprecated__ attribute (Python 3.13+, warnings module)
+        if hasattr(obj, "__deprecated__"):
+            result["deprecated"] = True
+        # Tier 2: Inspect source for unconditional deprecation warning
+        if not result["deprecated"]:
+            try:
+                src_lines = inspect.getsource(obj).split("\n")
+                # Find warnings.warn or warnings._deprecated at function body level
+                # (indented exactly one level from def). Conditional deprecation
+                # (inside if/try) means only specific usage is deprecated, not the function.
+                body_indent = None
+                for line in src_lines:
+                    stripped = line.lstrip()
+                    if stripped and not stripped.startswith("def ") and not stripped.startswith("@") and not stripped.startswith("#"):
+                        body_indent = len(line) - len(stripped)
+                        break
+                if body_indent is not None:
+                    for line in src_lines:
+                        stripped = line.lstrip()
+                        indent = len(line) - len(stripped)
+                        if indent == body_indent and ("warnings._deprecated" in stripped or "warnings.warn" in stripped):
+                            result["deprecated"] = True
+                            break
+            except (OSError, TypeError):
+                pass
+        # Tier 3: Check if accessing triggers descriptor-based warnings
+        if not result["deprecated"]:
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always", DeprecationWarning)
+                try:
+                    _ = getattr(mod, attr_name)
+                    if any(issubclass(x.category, DeprecationWarning) for x in w):
+                        result["deprecated"] = True
+                except Exception:
+                    pass
+        # Tier 4: Docstring — only first line starting with "deprecated"
+        if not result["deprecated"]:
             try:
                 doc = inspect.getdoc(obj) or ""
-                if "deprecated" in doc.lower():
+                first_line = doc.strip().split("\n")[0].lower().strip()
+                if first_line.startswith("deprecated") or ".. deprecated" in first_line:
                     result["deprecated"] = True
             except Exception:
                 pass
@@ -81,7 +117,7 @@ for q in data.get("queries", []):
     results[key] = introspect(q["module"], q["attribute"])
 
 json.dump(results, sys.stdout)
-"#;
+"##;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntrospectResult {

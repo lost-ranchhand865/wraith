@@ -98,6 +98,11 @@ impl PhantomLinter {
                 continue;
             }
 
+            // Skip imports inside `if TYPE_CHECKING:` blocks (PEP 484)
+            if import.is_type_checking {
+                continue;
+            }
+
             // Skip stdlib modules
             if is_stdlib(pkg) {
                 continue;

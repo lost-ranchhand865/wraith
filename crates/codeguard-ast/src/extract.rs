@@ -17,6 +17,7 @@ pub struct ImportInfo {
     pub module: String,
     pub names: Vec<ImportedName>,
     pub is_from: bool,
+    pub is_type_checking: bool,
     pub span: Span,
 }
 
@@ -82,8 +83,9 @@ pub fn extract_file_info(tree: &Tree, source: &str, path: &Path) -> FileInfo {
         comments: Vec::new(),
         decorators: Vec::new(),
     };
+    // Note: in_type_checking=false at top level
 
-    extract_recursive(root, source, path, &line_index, &mut info);
+    extract_recursive(root, source, path, &line_index, &mut info, false);
     info
 }
 
@@ -93,13 +95,14 @@ fn extract_recursive(
     path: &Path,
     idx: &LineIndex,
     info: &mut FileInfo,
+    in_type_checking: bool,
 ) {
     match node.kind() {
         "import_statement" => {
-            extract_import(node, source, path, idx, info);
+            extract_import(node, source, path, idx, info, in_type_checking);
         }
         "import_from_statement" => {
-            extract_from_import(node, source, path, idx, info);
+            extract_from_import(node, source, path, idx, info, in_type_checking);
         }
         "assignment" => {
             extract_assignment(node, source, path, idx, info);
@@ -120,15 +123,26 @@ fn extract_recursive(
         _ => {}
     }
 
+    // Detect `if TYPE_CHECKING:` blocks and propagate flag to children
     let child_count = node.child_count();
+    let mut child_type_checking = in_type_checking;
+    if node.kind() == "if_statement" {
+        if let Some(cond) = node.child_by_field_name("condition") {
+            let cond_text = node_text(cond, source);
+            if cond_text.ends_with("TYPE_CHECKING") {
+                child_type_checking = true;
+            }
+        }
+    }
+
     for i in 0..child_count {
         if let Some(child) = node.child(i) {
-            extract_recursive(child, source, path, idx, info);
+            extract_recursive(child, source, path, idx, info, child_type_checking);
         }
     }
 }
 
-fn extract_import(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &mut FileInfo) {
+fn extract_import(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &mut FileInfo, is_type_checking: bool) {
     // import X, import X as Y, import X.Y.Z
     let mut cursor = node.walk();
     let mut names = Vec::new();
@@ -167,6 +181,7 @@ fn extract_import(node: Node, source: &str, path: &Path, idx: &LineIndex, info: 
             module: top_module,
             names: vec![name.clone()],
             is_from: false,
+            is_type_checking,
             span: idx.span_from_node(node, path),
         });
     }
@@ -178,6 +193,7 @@ fn extract_from_import(
     path: &Path,
     idx: &LineIndex,
     info: &mut FileInfo,
+    is_type_checking: bool,
 ) {
     let module_node = node.child_by_field_name("module_name");
     let module = module_node.map(|n| node_text(n, source)).unwrap_or_default();
@@ -223,6 +239,7 @@ fn extract_from_import(
         module: top_module,
         names,
         is_from: true,
+        is_type_checking,
         span: idx.span_from_node(node, path),
     });
 }

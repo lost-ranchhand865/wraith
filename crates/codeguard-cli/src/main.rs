@@ -267,7 +267,7 @@ fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat, include_t
     } else {
         (vec![], diagnostics)
     };
-    let mut diagnostics = real_diagnostics;
+    let diagnostics = real_diagnostics;
 
     // 8. Apply fixes if requested
     if config.fix {

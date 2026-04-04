@@ -176,6 +176,26 @@ fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat) -> Result
         None
     };
 
+    // 4b. Project-level checks (VC007-VC010)
+    let mut project_diagnostics = Vec::new();
+    if run_vc {
+        let project_root = paths
+            .first()
+            .and_then(|p| {
+                if p.is_dir() {
+                    Some(p.clone())
+                } else {
+                    p.parent().map(|pp| pp.to_path_buf())
+                }
+            })
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        project_diagnostics = codeguard_vibe::project::check_project(&project_root);
+        project_diagnostics.retain(|d| config.is_rule_enabled(&d.code.0));
+        if config.verbose && !project_diagnostics.is_empty() {
+            eprintln!("  Project checks: {} issues", project_diagnostics.len());
+        }
+    }
+
     // 5. Lint phase (parallel)
     let all_diagnostics: Vec<Diagnostic> = parsed
         .par_iter()
@@ -199,6 +219,13 @@ fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat) -> Result
             diags
         })
         .collect();
+
+    // 5b. Merge project-level diagnostics
+    let all_diagnostics = {
+        let mut combined = all_diagnostics;
+        combined.extend(project_diagnostics);
+        combined
+    };
 
     // 6. Sort deterministically
     let mut diagnostics = all_diagnostics;

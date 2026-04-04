@@ -1,3 +1,5 @@
+pub mod project;
+
 use codeguard_ast::{extract_file_info, FileInfo};
 use codeguard_core::diagnostic::TextEdit;
 use codeguard_core::{Diagnostic, RuleCode, Span};
@@ -66,15 +68,13 @@ pub fn lint_vibe(tree: &Tree, source: &str, path: &Path) -> Vec<Diagnostic> {
 }
 
 fn check_hardcoded_secrets(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
+    let mut reported_lines: std::collections::HashSet<u32> = std::collections::HashSet::new();
+
     for assign in &info.assignments {
         if !assign.value_is_string {
             continue;
         }
-        if !SECRET_NAME_RE.is_match(&assign.target) {
-            continue;
-        }
         let value = assign.value.as_deref().unwrap_or("");
-        // Skip empty strings, None-like, env var lookups
         let unquoted = value
             .trim_start_matches(|c: char| c == '\'' || c == '\"')
             .trim_end_matches(|c: char| c == '\'' || c == '\"');
@@ -82,9 +82,30 @@ fn check_hardcoded_secrets(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
             continue;
         }
 
+        // Check 1: variable name matches secret pattern (original VC001)
+        let name_match = SECRET_NAME_RE.is_match(&assign.target);
+
+        // Check 2: high-entropy string (Shannon entropy > 4.5, length >= 16)
+        let entropy_match = unquoted.len() >= 16 && shannon_entropy(unquoted) > 4.5;
+
+        // Check 3: known secret prefixes (sk-, ghp_, AKIA, eyJ for JWT)
+        let prefix_match = has_secret_prefix(unquoted);
+
+        if !name_match && !entropy_match && !prefix_match {
+            continue;
+        }
+
+        reported_lines.insert(assign.span.start_line);
+
         let env_var = assign.target.to_uppercase();
         let replacement = make_environ_ref(&env_var);
-        let suggestion_text = format!("use {} instead", replacement);
+        let suggestion_text = if name_match {
+            format!("use {} instead", replacement)
+        } else if prefix_match {
+            format!("looks like a secret token (prefix match); use {} instead", replacement)
+        } else {
+            format!("high-entropy string (likely a secret); use {} instead", replacement)
+        };
         let fix = assign.value_span.as_ref().map(|vs| TextEdit {
             start_line: vs.start_line,
             start_col: vs.start_col,
@@ -269,6 +290,46 @@ fn check_suspicious_endpoints(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
             }
         }
     }
+}
+
+fn shannon_entropy(s: &str) -> f64 {
+    let mut freq = [0u32; 256];
+    let len = s.len() as f64;
+    for &b in s.as_bytes() {
+        freq[b as usize] += 1;
+    }
+    let mut entropy = 0.0f64;
+    for &count in &freq {
+        if count > 0 {
+            let p = count as f64 / len;
+            entropy -= p * p.log2();
+        }
+    }
+    entropy
+}
+
+fn has_secret_prefix(s: &str) -> bool {
+    // Known prefixes for API keys and tokens
+    s.starts_with("sk-")         // OpenAI, Stripe
+        || s.starts_with("sk_")  // Stripe
+        || s.starts_with("pk_")  // Stripe public
+        || s.starts_with("ghp_") // GitHub PAT
+        || s.starts_with("gho_") // GitHub OAuth
+        || s.starts_with("ghu_") // GitHub user-to-server
+        || s.starts_with("ghs_") // GitHub server-to-server
+        || s.starts_with("ghr_") // GitHub refresh
+        || s.starts_with("AKIA") // AWS access key
+        || s.starts_with("eyJ")  // JWT (base64 of {"
+        || s.starts_with("xoxb-") // Slack bot
+        || s.starts_with("xoxp-") // Slack user
+        || s.starts_with("xapp-") // Slack app
+        || s.starts_with("glpat-") // GitLab PAT
+        || s.starts_with("npm_")   // npm token
+        || s.starts_with("pypi-")  // PyPI token
+        || s.starts_with("hf_")    // HuggingFace
+        || s.starts_with("sq0")    // Square
+        || s.starts_with("SG.")    // SendGrid
+        || s.starts_with("whsec_") // Stripe webhook
 }
 
 fn make_environ_ref(var_name: &str) -> String {

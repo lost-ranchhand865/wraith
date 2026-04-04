@@ -5,6 +5,7 @@ use colored::Colorize;
 pub enum OutputFormat {
     Text,
     Json,
+    Sarif,
 }
 
 impl std::str::FromStr for OutputFormat {
@@ -13,6 +14,7 @@ impl std::str::FromStr for OutputFormat {
         match s.to_lowercase().as_str() {
             "text" => Ok(OutputFormat::Text),
             "json" => Ok(OutputFormat::Json),
+            "sarif" => Ok(OutputFormat::Sarif),
             _ => Err(format!("unknown format: {s}")),
         }
     }
@@ -22,6 +24,7 @@ pub fn format_diagnostics(diagnostics: &[Diagnostic], format: OutputFormat) -> S
     match format {
         OutputFormat::Text => format_text(diagnostics),
         OutputFormat::Json => format_json(diagnostics),
+        OutputFormat::Sarif => format_sarif(diagnostics),
     }
 }
 
@@ -88,4 +91,103 @@ fn format_text(diagnostics: &[Diagnostic]) -> String {
 
 fn format_json(diagnostics: &[Diagnostic]) -> String {
     serde_json::to_string_pretty(diagnostics).unwrap_or_default()
+}
+
+fn format_sarif(diagnostics: &[Diagnostic]) -> String {
+    let results: Vec<serde_json::Value> = diagnostics
+        .iter()
+        .map(|d| {
+            let level = match d.severity {
+                crate::Severity::Error => "error",
+                crate::Severity::Warning => "warning",
+                crate::Severity::Info => "note",
+            };
+
+            let mut result = serde_json::json!({
+                "ruleId": d.code.0,
+                "level": level,
+                "message": {
+                    "text": d.message
+                },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {
+                            "uri": d.span.file.display().to_string()
+                        },
+                        "region": {
+                            "startLine": d.span.start_line,
+                            "startColumn": d.span.start_col + 1,
+                            "endLine": d.span.end_line,
+                            "endColumn": d.span.end_col + 1
+                        }
+                    }
+                }]
+            });
+
+            if let Some(ref suggestion) = d.suggestion {
+                result["message"]["text"] =
+                    serde_json::Value::String(format!("{} — {}", d.message, suggestion));
+            }
+
+            if let Some(ref fix) = d.fix {
+                result["fixes"] = serde_json::json!([{
+                    "description": {
+                        "text": d.suggestion.as_deref().unwrap_or("auto-fix")
+                    },
+                    "artifactChanges": [{
+                        "artifactLocation": {
+                            "uri": d.span.file.display().to_string()
+                        },
+                        "replacements": [{
+                            "deletedRegion": {
+                                "startLine": fix.start_line,
+                                "startColumn": fix.start_col + 1,
+                                "endLine": fix.end_line,
+                                "endColumn": fix.end_col + 1
+                            },
+                            "insertedContent": {
+                                "text": fix.replacement
+                            }
+                        }]
+                    }]
+                }]);
+            }
+
+            result
+        })
+        .collect();
+
+    let rules: Vec<serde_json::Value> = {
+        let mut seen = std::collections::HashSet::new();
+        diagnostics
+            .iter()
+            .filter(|d| seen.insert(d.code.0.clone()))
+            .map(|d| {
+                serde_json::json!({
+                    "id": d.code.0,
+                    "shortDescription": {
+                        "text": d.code.0
+                    }
+                })
+            })
+            .collect()
+    };
+
+    let sarif = serde_json::json!({
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "codeguard",
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "informationUri": "https://github.com/codeguard/codeguard",
+                    "rules": rules
+                }
+            },
+            "results": results
+        }]
+    });
+
+    serde_json::to_string_pretty(&sarif).unwrap_or_default()
 }

@@ -282,6 +282,7 @@ dependencies = [
  "codeguard-core",
  "once_cell",
  "regex",
+ "serde_json",
  "tree-sitter",
 ]
 

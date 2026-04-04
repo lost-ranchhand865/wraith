@@ -38,7 +38,9 @@ impl Config {
             None => true,
             Some(selectors) => selectors.iter().any(|s| {
                 let s_upper = s.to_uppercase();
-                code.to_uppercase().starts_with(&s_upper)
+                let code_upper = code.to_uppercase();
+                // "AG001".starts_with("AG") OR "AG".starts_with("AG001") — both should match
+                code_upper.starts_with(&s_upper) || s_upper.starts_with(&code_upper)
             }),
         }
     }

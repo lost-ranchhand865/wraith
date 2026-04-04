@@ -170,6 +170,44 @@ impl PackageChecker {
             }
         }
 
+        // Download check (< 1000 weekly)
+        if let Some(downloads) = info.weekly_downloads {
+            if downloads < 1000 {
+                reasons.push(format!("low weekly downloads ({downloads})"));
+            }
+        }
+
+        // Version count as additional signal (single version = higher risk)
+        if info.version_count == 1 {
+            // Only flag if combined with another reason (single version alone is normal for new legit packages)
+            if !reasons.is_empty() {
+                reasons.push("only 1 release version".to_string());
+            }
+        }
+
+        // Temporal check: package created after major LLM training cutoffs
+        // Packages registered only after training cutoff are higher-risk slopsquatting targets
+        if let Some(ref first_release) = info.first_release {
+            if let Ok(date) = chrono::NaiveDate::parse_from_str(first_release, "%Y-%m-%d") {
+                // Training cutoffs for major models
+                let cutoffs = [
+                    ("2024-04-01", "GPT-4o/Claude 3"),
+                    ("2025-04-01", "GPT-4.5/Claude 3.5"),
+                ];
+                for (cutoff_str, models) in &cutoffs {
+                    if let Ok(cutoff) = chrono::NaiveDate::parse_from_str(cutoff_str, "%Y-%m-%d") {
+                        if date > cutoff {
+                            reasons.push(format!(
+                                "package first released after {} training cutoff ({first_release})",
+                                models
+                            ));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         // Typosquat check
         let closest = self.find_closest_popular(package_name);
         if let Some((name, dist)) = closest {
@@ -211,29 +249,41 @@ impl PackageChecker {
 #[derive(Debug)]
 struct PypiInfo {
     first_release: Option<String>,
+    weekly_downloads: Option<u64>,
+    version_count: usize,
 }
 
 fn parse_pypi_response(body: &str) -> Result<PypiInfo, serde_json::Error> {
     let v: serde_json::Value = serde_json::from_str(body)?;
 
     // Get first release date from releases
-    let first_release = v
-        .get("releases")
-        .and_then(|r| r.as_object())
-        .and_then(|releases| {
-            releases
-                .values()
-                .filter_map(|files| {
-                    files.as_array().and_then(|arr| {
-                        arr.first().and_then(|f| {
-                            f.get("upload_time").and_then(|t| {
-                                t.as_str().map(|s| s[..10].to_string())
-                            })
-                        })
+    let releases = v.get("releases").and_then(|r| r.as_object());
+    let first_release = releases.and_then(|rels| {
+        rels.values()
+            .filter_map(|files| {
+                files.as_array().and_then(|arr| {
+                    arr.first().and_then(|f| {
+                        f.get("upload_time")
+                            .and_then(|t| t.as_str().map(|s| s[..10].to_string()))
                     })
                 })
-                .min()
-        });
+            })
+            .min()
+    });
 
-    Ok(PypiInfo { first_release })
+    let version_count = releases.map(|r| r.len()).unwrap_or(0);
+
+    // PyPI JSON API doesn't expose weekly downloads directly in the main endpoint.
+    // We use info.downloads (deprecated but sometimes present) or version count as proxy.
+    let weekly_downloads = v
+        .get("info")
+        .and_then(|i| i.get("downloads"))
+        .and_then(|d| d.get("last_week"))
+        .and_then(|w| w.as_u64());
+
+    Ok(PypiInfo {
+        first_release,
+        weekly_downloads,
+        version_count,
+    })
 }

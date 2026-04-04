@@ -41,6 +41,9 @@ pub struct RuleInfo {
 pub const AG001: &str = "AG001";
 pub const AG002: &str = "AG002";
 pub const AG003: &str = "AG003";
+pub const AG004: &str = "AG004";
+pub const AG005: &str = "AG005";
+pub const AG006: &str = "AG006";
 
 // PH rules
 pub const PH001: &str = "PH001";
@@ -54,6 +57,10 @@ pub const VC003: &str = "VC003";
 pub const VC004: &str = "VC004";
 pub const VC005: &str = "VC005";
 pub const VC006: &str = "VC006";
+pub const VC007: &str = "VC007";
+pub const VC008: &str = "VC008";
+pub const VC009: &str = "VC009";
+pub const VC010: &str = "VC010";
 
 pub fn all_rules() -> Vec<RuleInfo> {
     vec![
@@ -74,6 +81,24 @@ pub fn all_rules() -> Vec<RuleInfo> {
             name: "deprecated-api",
             description: "API is deprecated",
             fixable: false,
+        },
+        RuleInfo {
+            code: RuleCode::new(AG004),
+            name: "bare-call",
+            description: "Library function called without module qualifier",
+            fixable: true,
+        },
+        RuleInfo {
+            code: RuleCode::new(AG005),
+            name: "missing-import",
+            description: "Module used but never imported",
+            fixable: true,
+        },
+        RuleInfo {
+            code: RuleCode::new(AG006),
+            name: "contextual-mismatch",
+            description: "File extension does not match function semantics",
+            fixable: true,
         },
         RuleInfo {
             code: RuleCode::new(PH001),
@@ -127,6 +152,30 @@ pub fn all_rules() -> Vec<RuleInfo> {
             code: RuleCode::new(VC006),
             name: "suspicious-endpoint",
             description: "Debug/admin endpoint without auth decorator",
+            fixable: false,
+        },
+        RuleInfo {
+            code: RuleCode::new(VC007),
+            name: "dangerous-file",
+            description: "Dangerous file in project tree (.env, .pem, keys, credentials)",
+            fixable: false,
+        },
+        RuleInfo {
+            code: RuleCode::new(VC008),
+            name: "unpinned-dependency",
+            description: "Dependency not pinned to exact version in requirements.txt",
+            fixable: false,
+        },
+        RuleInfo {
+            code: RuleCode::new(VC009),
+            name: "missing-lockfile",
+            description: "No lockfile found for dependency manifest",
+            fixable: false,
+        },
+        RuleInfo {
+            code: RuleCode::new(VC010),
+            name: "source-map-full-source",
+            description: "Source map contains full sourcesContent (complete source disclosure)",
             fixable: false,
         },
     ]

@@ -1,4 +1,6 @@
+pub mod context_match;
 pub mod introspect;
+pub mod known_functions;
 
 use codeguard_ast::extract_file_info;
 use codeguard_core::diagnostic::TextEdit;
@@ -88,10 +90,6 @@ impl ApiGuardLinter {
         let cache = self.results.lock().unwrap();
         let mut diagnostics = Vec::new();
 
-        if cache.is_empty() {
-            return diagnostics;
-        }
-
         // Build alias → module mapping
         let mut alias_map: HashMap<String, String> = HashMap::new();
         for imp in &info.imports {
@@ -105,6 +103,8 @@ impl ApiGuardLinter {
             }
         }
 
+        // AG001-AG003: introspection-based checks (need cache)
+        if !cache.is_empty() {
         for call in &info.calls {
             if let Some(ref receiver) = call.receiver {
                 let top = receiver.split('.').next().unwrap_or(receiver);
@@ -192,9 +192,206 @@ impl ApiGuardLinter {
                 }
             }
         }
+        } // end if !cache.is_empty()
+
+        // AG006: contextual mismatch (file extension vs function semantics)
+        for call in &info.calls {
+            if let Some(ref filename) = call.first_string_arg {
+                if let Some(mismatch) = context_match::check_extension_match(&call.function, filename) {
+                    let correct_func = suggest_correct_function(&call.function, filename);
+                    let mut d = Diagnostic::warning(
+                        RuleCode::new("AG006"),
+                        call.span.clone(),
+                        format!("{}: {}", call.full_name, mismatch),
+                    );
+                    if let Some(ref correct) = correct_func {
+                        d = d.with_suggestion(format!("use {correct}() instead"));
+                        if call.receiver.is_some() {
+                            d = d.with_fix(TextEdit {
+                                start_line: call.function_span.start_line,
+                                start_col: call.function_span.start_col,
+                                end_line: call.function_span.end_line,
+                                end_col: call.function_span.end_col,
+                                replacement: correct.clone(),
+                            });
+                        }
+                    }
+                    diagnostics.push(d);
+                }
+            }
+        }
+
+        // AG004: bare library function calls without module qualifier
+        let bare_map = known_functions::bare_call_map();
+        // Build set of names imported via "from X import func"
+        let mut from_imported: HashSet<String> = HashSet::new();
+        for imp in &info.imports {
+            if imp.is_from {
+                for name in &imp.names {
+                    let actual = name.alias.as_ref().unwrap_or(&name.name);
+                    from_imported.insert(actual.clone());
+                }
+            }
+        }
+
+        for call in &info.calls {
+            if call.receiver.is_some() {
+                continue; // qualified call, not bare
+            }
+            // Skip if function was explicitly imported via "from X import func"
+            if from_imported.contains(&call.function) {
+                continue;
+            }
+            // Skip builtins
+            if is_python_builtin(&call.function) {
+                continue;
+            }
+            if let Some(&(module, alias)) = bare_map.get(call.function.as_str()) {
+                let prefix = if alias != module { alias } else { module };
+                let replacement = format!("{}.{}", prefix, call.function);
+                diagnostics.push(
+                    Diagnostic::warning(
+                        RuleCode::new("AG004"),
+                        call.span.clone(),
+                        format!(
+                            "{}() called without module qualifier",
+                            call.function,
+                        ),
+                    )
+                    .with_suggestion(format!("use {replacement}()"))
+                    .with_fix(TextEdit {
+                        start_line: call.function_span.start_line,
+                        start_col: call.function_span.start_col,
+                        end_line: call.function_span.end_line,
+                        end_col: call.function_span.end_col,
+                        replacement,
+                    }),
+                );
+            }
+        }
+
+        // AG005: module used but never imported
+        let mut imported_names: HashSet<String> = HashSet::new();
+        for imp in &info.imports {
+            for name in &imp.names {
+                let actual = name.alias.as_ref().unwrap_or(&name.name);
+                imported_names.insert(actual.clone());
+            }
+            // Also track the top-level module
+            imported_names.insert(imp.module.clone());
+        }
+        // Common alias → full import statement
+        let alias_imports = common_alias_map();
+        let mut reported_modules: HashSet<String> = HashSet::new();
+        for call in &info.calls {
+            if let Some(ref receiver) = call.receiver {
+                let top = receiver.split('.').next().unwrap_or(receiver);
+                if !imported_names.contains(top)
+                    && !is_python_builtin(top)
+                    && !looks_like_local_var(top)
+                    && reported_modules.insert(top.to_string())
+                {
+                    let import_stmt = alias_imports
+                        .get(top)
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| format!("import {top}"));
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            RuleCode::new("AG005"),
+                            call.span.clone(),
+                            format!("'{top}' is used but never imported"),
+                        )
+                        .with_suggestion(format!("add '{import_stmt}' at the top of the file"))
+                        .with_fix(TextEdit {
+                            start_line: 1,
+                            start_col: 0,
+                            end_line: 1,
+                            end_col: 0,
+                            replacement: format!("{import_stmt}\n"),
+                        }),
+                    );
+                }
+            }
+        }
 
         diagnostics
     }
+}
+
+fn looks_like_local_var(name: &str) -> bool {
+    // Single char (x, y, i, f), starts with quote, lowercase single word < 4 chars
+    name.len() <= 1
+        || name.starts_with('\"')
+        || name.starts_with('\'')
+        || name.starts_with('(')
+        || name.starts_with('[')
+        || name.starts_with('{')
+        || name.starts_with('f')  && name.len() > 1 && (name.as_bytes()[1] == b'\'' || name.as_bytes()[1] == b'\"')
+        || (name.len() <= 3 && name.chars().all(|c| c.is_lowercase()))
+}
+
+fn is_python_builtin(name: &str) -> bool {
+    PYTHON_BUILTINS.contains(&name)
+}
+
+const PYTHON_BUILTINS: &[&str] = &[
+    "abs", "all", "any", "ascii", "bin", "bool", "breakpoint", "bytearray",
+    "bytes", "callable", "chr", "classmethod", "compile", "complex",
+    "delattr", "dict", "dir", "divmod", "enumerate", "eval", "exec",
+    "filter", "float", "format", "frozenset", "getattr", "globals",
+    "hasattr", "hash", "help", "hex", "id", "input", "int", "isinstance",
+    "issubclass", "iter", "len", "list", "locals", "map", "max",
+    "memoryview", "min", "next", "object", "oct", "open", "ord", "pow",
+    "print", "property", "range", "repr", "reversed", "round", "set",
+    "setattr", "slice", "sorted", "staticmethod", "str", "sum", "super",
+    "tuple", "type", "vars", "zip", "__import__",
+    // common test/framework names that are not library imports
+    "self", "cls", "app", "db", "client", "request", "response",
+    "session", "config", "logger", "log",
+];
+
+fn suggest_correct_function(current_func: &str, filename: &str) -> Option<String> {
+    let lower = filename.to_lowercase();
+    let ext_map: &[(&str, &str)] = &[
+        (".csv", "read_csv"),
+        (".tsv", "read_csv"),
+        (".xlsx", "read_excel"),
+        (".xls", "read_excel"),
+        (".json", "read_json"),
+        (".jsonl", "read_json"),
+        (".parquet", "read_parquet"),
+        (".pq", "read_parquet"),
+        (".feather", "read_feather"),
+        (".h5", "read_hdf"),
+        (".hdf5", "read_hdf"),
+        (".xml", "read_xml"),
+        (".html", "read_html"),
+        (".htm", "read_html"),
+        (".pkl", "read_pickle"),
+        (".pickle", "read_pickle"),
+        (".dta", "read_stata"),
+        (".sav", "read_spss"),
+    ];
+
+    for (ext, func) in ext_map {
+        if lower.ends_with(ext) && *func != current_func {
+            return Some(func.to_string());
+        }
+    }
+    None
+}
+
+fn common_alias_map() -> HashMap<&'static str, &'static str> {
+    let mut m = HashMap::new();
+    m.insert("np", "import numpy as np");
+    m.insert("pd", "import pandas as pd");
+    m.insert("plt", "import matplotlib.pyplot as plt");
+    m.insert("tf", "import tensorflow as tf");
+    m.insert("sns", "import seaborn as sns");
+    m.insert("cv2", "import cv2");
+    m.insert("sk", "import sklearn as sk");
+    m.insert("sp", "import scipy as sp");
+    m
 }
 
 fn resolve_module(receiver: &str, alias_map: &HashMap<String, String>) -> String {

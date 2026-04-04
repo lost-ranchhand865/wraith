@@ -40,6 +40,8 @@ pub struct CallInfo {
     pub function_span: Span,
     pub keyword_args: Vec<KeywordArg>,
     pub positional_count: usize,
+    pub first_string_arg: Option<String>,
+    pub first_arg_span: Option<Span>,
     pub span: Span,
 }
 
@@ -250,6 +252,8 @@ fn extract_call(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &m
 
     let mut keyword_args = Vec::new();
     let mut positional_count = 0;
+    let mut first_string_arg: Option<String> = None;
+    let mut first_arg_span: Option<Span> = None;
 
     if let Some(args) = args_node {
         let mut cursor = args.walk();
@@ -265,6 +269,14 @@ fn extract_call(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &m
                 }
                 "(" | ")" | "," => {}
                 _ => {
+                    if positional_count == 0 && child.kind() == "string" {
+                        let raw = node_text(child, source);
+                        let unquoted = raw
+                            .trim_start_matches(|c: char| c == '\'' || c == '\"')
+                            .trim_end_matches(|c: char| c == '\'' || c == '\"');
+                        first_string_arg = Some(unquoted.to_string());
+                        first_arg_span = Some(idx.span_from_node(child, path));
+                    }
                     positional_count += 1;
                 }
             }
@@ -278,6 +290,8 @@ fn extract_call(node: Node, source: &str, path: &Path, idx: &LineIndex, info: &m
         function_span: func_span,
         keyword_args,
         positional_count,
+        first_string_arg,
+        first_arg_span,
         span: idx.span_from_node(node, path),
     });
 }

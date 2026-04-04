@@ -13,7 +13,21 @@ use std::path::{Path, PathBuf};
 #[command(
     name = "codeguard",
     version,
-    about = "Deterministic linter for AI-generated Python code"
+    about = "Deterministic linter for AI-generated Python code",
+    long_about = "codeguard — deterministic linter for AI-generated Python code.\n\n\
+        Detects hallucinated APIs, phantom packages, hardcoded secrets,\n\
+        AI artifacts, and supply chain risks. 20 rules, zero config.\n\n\
+        Quick start:\n  \
+          codeguard check .                  # scan current directory\n  \
+          codeguard check . --fix --diff     # preview fixes\n  \
+          codeguard check . --fix            # apply fixes\n  \
+          codeguard rules                    # list all rules",
+    after_help = "Examples:\n  \
+        codeguard check src/\n  \
+        codeguard check . --select AG,VC001\n  \
+        codeguard check . --fix --diff\n  \
+        codeguard check . --offline --min-confidence 0.8\n  \
+        codeguard check . --format sarif > report.sarif"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -125,12 +139,12 @@ fn main() -> Result<()> {
 }
 
 fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat, include_tests: bool, min_confidence: f64, show_diff: bool) -> Result<()> {
+    let start_time = std::time::Instant::now();
+
     // 1. Discover .py files
     let files = discover_files(paths, include_tests)?;
     if files.is_empty() {
-        if config.verbose {
-            eprintln!("No Python files found.");
-        }
+        eprintln!("{}", "No Python files found.".dimmed());
         return Ok(());
     }
 
@@ -302,10 +316,17 @@ fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat, include_t
     }
 
     // 9. Report
+    let elapsed = start_time.elapsed();
+    let file_count = parsed.len();
+
     if diagnostics.is_empty() && offline_unverified.is_empty() {
-        if config.verbose {
-            eprintln!("{}", "All checks passed!".green());
-        }
+        eprintln!(
+            "{} {} file{} checked in {:.2}s",
+            "All checks passed!".green().bold(),
+            file_count,
+            if file_count == 1 { "" } else { "s" },
+            elapsed.as_secs_f64(),
+        );
         return Ok(());
     }
 
@@ -342,6 +363,18 @@ fn run_check(config: &Config, paths: &[PathBuf], format: OutputFormat, include_t
             );
         }
     }
+
+    // Timing summary
+    eprintln!(
+        "{}",
+        format!(
+            "Checked {} file{} in {:.2}s",
+            file_count,
+            if file_count == 1 { "" } else { "s" },
+            elapsed.as_secs_f64(),
+        )
+        .dimmed(),
+    );
 
     // 10. Exit code
     if config.strict && !diagnostics.is_empty() {
@@ -571,15 +604,57 @@ fn print_diff(
 
 fn print_rules() {
     let rules = rules::all_rules();
-    println!("{:<8} {:<30} {:<6} {}", "Code", "Name", "Fix", "Description");
-    println!("{}", "-".repeat(80));
-    for rule in rules {
-        println!(
-            "{:<8} {:<30} {:<6} {}",
-            rule.code,
-            rule.name,
-            if rule.fixable { "yes" } else { "-" },
-            rule.description,
-        );
+    let pedantic: std::collections::HashSet<&str> =
+        codeguard_core::config::PEDANTIC_RULES.iter().copied().collect();
+
+    let groups = [
+        ("AG", "API Guard", "Detects hallucinated APIs, missing imports, deprecated calls"),
+        ("PH", "Phantom", "Validates packages against PyPI, detects typosquatting"),
+        ("VC", "Vibe Check", "Catches secrets, AI artifacts, debug code, supply chain risks"),
+    ];
+
+    for (prefix, name, desc) in &groups {
+        println!("\n  {} {}", name.bold(), format!("({}0xx)", prefix).dimmed());
+        println!("  {}", desc.dimmed());
+        println!();
+
+        let group_rules: Vec<_> = rules.iter().filter(|r| r.code.0.starts_with(prefix)).collect();
+        for rule in group_rules {
+            let code_colored = if rule.code.0.starts_with("AG") {
+                rule.code.0.red().bold().to_string()
+            } else if rule.code.0.starts_with("PH") {
+                rule.code.0.yellow().bold().to_string()
+            } else {
+                rule.code.0.blue().bold().to_string()
+            };
+
+            let fix_marker = if rule.fixable {
+                "fix".green().to_string()
+            } else {
+                "-".dimmed().to_string()
+            };
+
+            let pedantic_marker = if pedantic.contains(rule.code.0.as_str()) {
+                " (pedantic)".dimmed().to_string()
+            } else {
+                String::new()
+            };
+
+            println!(
+                "    {} {:<28} {:>3}  {}{}",
+                code_colored,
+                rule.name,
+                fix_marker,
+                rule.description,
+                pedantic_marker,
+            );
+        }
     }
+    println!();
+    println!(
+        "  {} rules total ({} auto-fixable)",
+        rules.len().to_string().bold(),
+        rules.iter().filter(|r| r.fixable).count().to_string().bold(),
+    );
+    println!();
 }

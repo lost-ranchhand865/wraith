@@ -8,6 +8,10 @@ An extremely fast AI code linter, written in Rust.
 
 *Catches what your AI forgot to check* — hallucinated APIs, phantom packages, hardcoded secrets, AI artifacts, and supply chain risks. 20 rules, zero config.
 
+<p align="center">
+  <img src="assets/demo.gif" alt="wraith demo" width="880">
+</p>
+
 ```
 $ wraith check .
 
@@ -23,6 +27,16 @@ src/utils/auth.py:89:4   VC011 potential secret leak: 'api_key' passed to print(
 Found 4 issues (2 auto-fixable). Run with --fix to apply.
 Checked 128 files in 0.34s
 ```
+
+## Why wraith?
+
+AI code generators hallucinate APIs, invent packages, and leave secrets in your code. Traditional linters don't catch any of it.
+
+<p align="center">
+  <img src="assets/comparison.svg" alt="wraith vs other linters" width="720">
+</p>
+
+> Scans 1121 files (FastAPI) in 350ms. Zero config, zero dependencies.
 
 ---
 

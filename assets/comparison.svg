@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 420" font-family="'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6d28d9"/>
+      <stop offset="100%" style="stop-color:#7c3aed"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="820" height="420" rx="12" fill="#0d1117"/>
+  <rect x="1" y="1" width="818" height="418" rx="12" fill="none" stroke="#21262d" stroke-width="1"/>
+
+  <!-- Header row -->
+  <rect x="12" y="12" width="796" height="44" rx="8" fill="url(#headerGrad)" opacity="0.15"/>
+  <line x1="12" y1="56" x2="808" y2="56" stroke="#6d28d9" stroke-width="1" opacity="0.4"/>
+
+  <!-- Column headers -->
+  <text x="180" y="40" fill="#c9d1d9" font-size="12" font-weight="bold" text-anchor="middle">Feature</text>
+  <text x="390" y="40" fill="#d4a4ff" font-size="13" font-weight="bold" text-anchor="middle" filter="url(#glow)">wraith</text>
+  <text x="478" y="40" fill="#8b949e" font-size="12" text-anchor="middle">ruff</text>
+  <text x="556" y="40" fill="#8b949e" font-size="12" text-anchor="middle">bandit</text>
+  <text x="644" y="40" fill="#8b949e" font-size="12" text-anchor="middle">semgrep</text>
+  <text x="732" y="40" fill="#8b949e" font-size="12" text-anchor="middle">flake8</text>
+
+  <!-- Row backgrounds (alternating) -->
+  <rect x="12" y="58" width="796" height="38" fill="#161b22" rx="0"/>
+  <rect x="12" y="96" width="796" height="38" fill="#0d1117" rx="0"/>
+  <rect x="12" y="134" width="796" height="38" fill="#161b22" rx="0"/>
+  <rect x="12" y="172" width="796" height="38" fill="#0d1117" rx="0"/>
+  <rect x="12" y="210" width="796" height="38" fill="#161b22" rx="0"/>
+  <rect x="12" y="248" width="796" height="38" fill="#0d1117" rx="0"/>
+  <rect x="12" y="286" width="796" height="38" fill="#161b22" rx="0"/>
+  <rect x="12" y="324" width="796" height="38" fill="#0d1117" rx="0"/>
+
+  <!-- Wraith column highlight -->
+  <rect x="348" y="12" width="84" height="352" fill="#7c3aed" opacity="0.06"/>
+
+  <!-- Row 1: Hallucinated API detection -->
+  <text x="24" y="82" fill="#c9d1d9" font-size="12">Hallucinated API detection</text>
+  <text x="390" y="83" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="478" y="83" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="556" y="83" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="644" y="83" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="732" y="83" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+
+  <!-- Row 2: Phantom package detection -->
+  <text x="24" y="120" fill="#c9d1d9" font-size="12">Phantom package detection</text>
+  <text x="390" y="121" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="478" y="121" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="556" y="121" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="644" y="121" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="732" y="121" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+
+  <!-- Row 3: Secret taint flow -->
+  <text x="24" y="158" fill="#c9d1d9" font-size="12">Secret taint flow analysis</text>
+  <text x="390" y="159" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="478" y="159" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="556" y="159" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="644" y="159" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="732" y="159" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+
+  <!-- Row 4: Hardcoded secrets -->
+  <text x="24" y="196" fill="#c9d1d9" font-size="12">Hardcoded secret detection</text>
+  <text x="390" y="197" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="478" y="197" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="556" y="197" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="644" y="197" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="732" y="197" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+
+  <!-- Row 5: AI artifact cleanup -->
+  <text x="24" y="234" fill="#c9d1d9" font-size="12">AI artifact cleanup</text>
+  <text x="390" y="235" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="478" y="235" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="556" y="235" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="644" y="235" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="732" y="235" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+
+  <!-- Row 6: Supply chain -->
+  <text x="24" y="272" fill="#c9d1d9" font-size="12">Supply chain checks</text>
+  <text x="390" y="273" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="478" y="273" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="556" y="273" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="644" y="273" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="732" y="273" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+
+  <!-- Row 7: Auto-fix -->
+  <text x="24" y="310" fill="#c9d1d9" font-size="12">Auto-fix</text>
+  <text x="390" y="311" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="478" y="311" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="556" y="311" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="644" y="311" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+  <text x="732" y="311" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+
+  <!-- Row 8: SARIF -->
+  <text x="24" y="348" fill="#c9d1d9" font-size="12">SARIF output</text>
+  <text x="390" y="349" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="478" y="349" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="556" y="349" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="644" y="349" fill="#3fb950" font-size="16" text-anchor="middle">✓</text>
+  <text x="732" y="349" fill="#484f58" font-size="14" text-anchor="middle">—</text>
+
+  <!-- Separator line -->
+  <line x1="12" y1="366" x2="808" y2="366" stroke="#21262d" stroke-width="1"/>
+
+  <!-- Footer -->
+  <text x="410" y="393" fill="#8b949e" font-size="11" text-anchor="middle" font-style="italic">Scans 1,121 files (FastAPI) in 350ms · Zero config · Zero dependencies</text>
+  <text x="410" y="410" fill="#6d28d9" font-size="11" text-anchor="middle">pip install wraith</text>
+</svg>

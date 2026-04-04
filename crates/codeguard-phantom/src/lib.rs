@@ -24,35 +24,45 @@ impl PhantomLinter {
         })
     }
 
-    /// Scan project root for local Python packages (directories with __init__.py
-    /// or directories that match common source layouts like src/).
+    /// Scan project root for local Python packages and modules.
+    /// Detects: directories with __init__.py, .py files (flat layout), src/ layout.
     pub fn detect_local_packages(&mut self, project_root: &Path) {
-        if let Ok(entries) = std::fs::read_dir(project_root) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    let name = entry.file_name().to_string_lossy().to_string();
-                    // Directory with __init__.py = Python package
-                    if path.join("__init__.py").exists() {
-                        self.local_packages.insert(name.clone());
-                    }
-                    // Common source layouts: src/, lib/, app/ containing Python files
-                    if matches!(name.as_str(), "src" | "lib" | "app") {
-                        self.local_packages.insert(name.clone());
-                    }
-                }
-            }
-        }
-        // Also check for packages inside src/ layout
+        self.scan_dir_for_local_modules(project_root);
+
+        // Also check inside src/ layout
         let src_dir = project_root.join("src");
         if src_dir.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&src_dir) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_dir() && path.join("__init__.py").exists() {
-                        let name = entry.file_name().to_string_lossy().to_string();
-                        self.local_packages.insert(name);
-                    }
+            self.scan_dir_for_local_modules(&src_dir);
+        }
+    }
+
+    fn scan_dir_for_local_modules(&mut self, dir: &Path) {
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+
+            if path.is_dir() {
+                // Directory with __init__.py = Python package
+                if path.join("__init__.py").exists() {
+                    self.local_packages.insert(name.clone());
+                }
+                // Common source layouts
+                if matches!(name.as_str(), "src" | "lib" | "app") {
+                    self.local_packages.insert(name.clone());
+                }
+            } else if path.extension().map_or(false, |e| e == "py") {
+                // Flat layout: {name}.py = local module
+                let module_name = name.trim_end_matches(".py").to_string();
+                if module_name != "__init__"
+                    && module_name != "setup"
+                    && module_name != "conftest"
+                    && !module_name.starts_with('.')
+                {
+                    self.local_packages.insert(module_name);
                 }
             }
         }

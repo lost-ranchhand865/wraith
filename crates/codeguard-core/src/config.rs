@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 /// Rules that are off by default (too noisy for most projects).
 /// Enabled via --pedantic or --select VC003.
-pub const PEDANTIC_RULES: &[&str] = &["VC003"];
+pub const PEDANTIC_RULES: &[&str] = &["VC003", "AG007"];
 
 #[derive(Debug, Deserialize, Default, Clone)]
 #[serde(default)]

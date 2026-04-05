@@ -330,6 +330,68 @@ impl ApiGuardLinter {
             }
         }
 
+        // AG007: dead imports — imported but never used in the file
+        let mut used_names: HashSet<String> = HashSet::new();
+        // Collect all names used as receivers
+        for call in &info.calls {
+            if let Some(ref recv) = call.receiver {
+                let top = recv.split('.').next().unwrap_or(recv);
+                used_names.insert(top.to_string());
+            }
+            // Bare function calls also count as usage if from-imported
+            if call.receiver.is_none() {
+                used_names.insert(call.function.clone());
+            }
+        }
+        // Collect names used in assignments RHS and other references
+        for assign in &info.assignments {
+            if let Some(ref val) = assign.value {
+                // Simple: check if any imported name appears in the value text
+                for imp in &info.imports {
+                    for name in &imp.names {
+                        let actual = name.alias.as_ref().unwrap_or(&name.name);
+                        if val.contains(actual) {
+                            used_names.insert(actual.clone());
+                        }
+                    }
+                    if val.contains(&imp.module) {
+                        used_names.insert(imp.module.clone());
+                    }
+                }
+            }
+        }
+        // Check each import
+        for imp in &info.imports {
+            if imp.is_type_checking {
+                continue; // type-only imports are fine
+            }
+            for name in &imp.names {
+                if name.name == "*" {
+                    continue; // star imports can't be checked
+                }
+                let actual = name.alias.as_ref().unwrap_or(&name.name);
+                let top = actual.split('.').next().unwrap_or(actual);
+                if !used_names.contains(top) {
+                    diagnostics.push(
+                        Diagnostic::info(
+                            RuleCode::new("AG007"),
+                            imp.span.clone(),
+                            format!("'{actual}' imported but never used"),
+                        )
+                        .with_suggestion("remove unused import")
+                        .with_fix(TextEdit {
+                            start_line: imp.span.start_line,
+                            start_col: 0,
+                            end_line: imp.span.end_line,
+                            end_col: imp.span.end_col,
+                            replacement: String::new(),
+                        })
+                        .with_confidence(0.7),
+                    );
+                }
+            }
+        }
+
         diagnostics
     }
 }

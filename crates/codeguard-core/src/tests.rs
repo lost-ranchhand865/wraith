@@ -87,7 +87,7 @@ fn test_config_defaults() {
 #[test]
 fn test_all_rules_defined() {
     let rules = all_rules();
-    assert_eq!(rules.len(), 20); // 6 AG + 3 PH + 11 VC
+    assert_eq!(rules.len(), 21); // 7 AG + 3 PH + 11 VC
 
     let codes: Vec<&str> = rules.iter().map(|r| r.code.0.as_str()).collect();
     assert!(codes.contains(&"AG001"));

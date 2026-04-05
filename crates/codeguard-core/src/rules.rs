@@ -44,6 +44,7 @@ pub const AG003: &str = "AG003";
 pub const AG004: &str = "AG004";
 pub const AG005: &str = "AG005";
 pub const AG006: &str = "AG006";
+pub const AG007: &str = "AG007";
 
 // PH rules
 pub const PH001: &str = "PH001";
@@ -99,6 +100,12 @@ pub fn all_rules() -> Vec<RuleInfo> {
             code: RuleCode::new(AG006),
             name: "contextual-mismatch",
             description: "File extension does not match function semantics",
+            fixable: true,
+        },
+        RuleInfo {
+            code: RuleCode::new(AG007),
+            name: "dead-import",
+            description: "Import is never used in the file",
             fixable: true,
         },
         RuleInfo {

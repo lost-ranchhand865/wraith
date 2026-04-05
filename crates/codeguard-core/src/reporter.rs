@@ -39,7 +39,6 @@ fn format_text(diagnostics: &[Diagnostic]) -> String {
             d.span.start_line,
             d.span.start_col
         );
-        let padding_len = location.len();
 
         let code_str = format!("{}", d.code);
         let severity_colored = match d.severity {

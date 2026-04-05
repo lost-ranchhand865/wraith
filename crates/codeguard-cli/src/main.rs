@@ -87,12 +87,18 @@ enum Commands {
     },
     /// List all available rules
     Rules,
+    /// Create a wraith.toml config file
+    Init,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Init => {
+            init_config()?;
+            Ok(())
+        }
         Commands::Rules => {
             print_rules();
             Ok(())
@@ -607,6 +613,42 @@ fn print_diff(
         }
     }
 
+    Ok(())
+}
+
+fn init_config() -> Result<()> {
+    let path = std::env::current_dir()?.join("wraith.toml");
+    if path.exists() {
+        eprintln!(
+            "{} wraith.toml already exists",
+            "Error:".red().bold()
+        );
+        std::process::exit(1);
+    }
+    let content = r#"# wraith configuration
+# https://github.com/Seinarukiro2/wraith
+
+# Select which rule groups to enable (default: all)
+# select = ["AG", "PH", "VC"]
+
+# Enable pedantic rules like VC003 (print detection)
+# pedantic = false
+
+# Skip PyPI HTTP checks
+# offline = false
+
+# Minimum confidence threshold (0.0-1.0)
+# min-confidence = 0.0
+
+# Paths to ignore
+# ignore = ["migrations/", "generated/", "vendor/"]
+"#;
+    std::fs::write(&path, content)?;
+    eprintln!(
+        "{} Created {}",
+        "Done!".green().bold(),
+        path.display()
+    );
     Ok(())
 }
 

